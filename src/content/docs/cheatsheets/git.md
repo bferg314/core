@@ -120,7 +120,7 @@ git log --oneline --graph --decorate --all
 git log -p file.txt              # history of one file, with diffs
 git log --follow -p file.txt     # ...including across renames
 git log -S "functionName"        # commits that added/removed this string
-git log --author="brian" --since="2 weeks ago"
+git log --author="bryan" --since="2 weeks ago"
 ```
 
 Who last touched each line, and why:

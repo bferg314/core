@@ -39,7 +39,7 @@ update it if conventions change. In short:
 - **Lead with the command**, explain after. The reader is in a hurry.
 - **One copy-pasteable block per step.** Never mix a command and its output in the
   same fence — it breaks the copy button's usefulness.
-- **Use real values, not placeholders.** `-C "brian@desktop"`, not `-C "<comment>"`.
+- **Use real values, not placeholders.** `-C "bryan@desktop"`, not `-C "<comment>"`.
 - **Label file contents with `title=`**, e.g. ```` ```bash title="~/.ssh/config" ````.
   Commands to run get no title.
 - **State the shell and OS** when it matters. Use `<Tabs syncKey="os">` for

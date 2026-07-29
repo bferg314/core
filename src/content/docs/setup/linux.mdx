@@ -55,8 +55,8 @@ List timezones with `timedatectl list-timezones`.
 Never work as root day to day.
 
 ```bash
-sudo adduser brian
-sudo usermod -aG sudo brian
+sudo adduser bryan
+sudo usermod -aG sudo bryan
 ```
 
 On Debian the group is `sudo`; on RHEL-family systems it's `wheel`.
@@ -65,7 +65,7 @@ Verify before you log out of the root session — a broken sudo setup on a remot
 box with root login disabled is how you lose access:
 
 ```bash
-su - brian -c "sudo -n true && echo 'sudo works'"
+su - bryan -c "sudo -n true && echo 'sudo works'"
 ```
 
 ### Optional: passwordless sudo
@@ -74,8 +74,8 @@ Convenient for a personal machine, a real reduction in security on anything
 shared or exposed.
 
 ```bash
-echo "brian ALL=(ALL) NOPASSWD:ALL" | sudo tee /etc/sudoers.d/brian
-sudo chmod 440 /etc/sudoers.d/brian
+echo "bryan ALL=(ALL) NOPASSWD:ALL" | sudo tee /etc/sudoers.d/bryan
+sudo chmod 440 /etc/sudoers.d/bryan
 ```
 
 :::caution
@@ -98,7 +98,7 @@ mkdir -p ~/.ssh && chmod 700 ~/.ssh
 Paste your public key in:
 
 ```bash
-echo "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI... brian@desktop" >> ~/.ssh/authorized_keys
+echo "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI... bryan@desktop" >> ~/.ssh/authorized_keys
 chmod 600 ~/.ssh/authorized_keys
 ```
 
@@ -117,7 +117,7 @@ KbdInteractiveAuthentication no
 PubkeyAuthentication yes
 X11Forwarding no
 MaxAuthTries 3
-AllowUsers brian
+AllowUsers bryan
 ```
 
 Validate the config before restarting — this is the step that saves you:

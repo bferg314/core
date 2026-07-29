@@ -15,7 +15,7 @@ One key per machine, named after the machine. `ed25519` is the right default —
 smaller and faster than RSA, and supported everywhere that matters.
 
 ```bash
-ssh-keygen -t ed25519 -C "brian@desktop"
+ssh-keygen -t ed25519 -C "bryan@desktop"
 ```
 
 Press Enter to accept the default path (`~/.ssh/id_ed25519`). Set a passphrase;
@@ -24,7 +24,7 @@ the agent below means you only type it once per boot.
 To keep several keys straight, name the file explicitly instead:
 
 ```bash
-ssh-keygen -t ed25519 -C "brian@desktop" -f ~/.ssh/id_ed25519_work
+ssh-keygen -t ed25519 -C "bryan@desktop" -f ~/.ssh/id_ed25519_work
 ```
 
 :::caution
@@ -36,7 +36,7 @@ anything authorized with that key stops working. Check what you have first:
 If you're on a system too old for `ed25519`, use a 4096-bit RSA key:
 
 ```bash
-ssh-keygen -t rsa -b 4096 -C "brian@desktop"
+ssh-keygen -t rsa -b 4096 -C "bryan@desktop"
 ```
 
 ## Start the agent
@@ -100,7 +100,7 @@ passphrase on every connection.
 ## Write an SSH config
 
 This is the highest-leverage file in the whole setup. It turns
-`ssh -i ~/.ssh/id_ed25519_work -p 2222 brian@10.0.0.14` into `ssh homelab`.
+`ssh -i ~/.ssh/id_ed25519_work -p 2222 bryan@10.0.0.14` into `ssh homelab`.
 
 <Tabs syncKey="os">
 	<TabItem label="Windows">
@@ -117,7 +117,7 @@ This is the highest-leverage file in the whole setup. It turns
 
 		Host homelab
 		    HostName 10.0.0.14
-		    User brian
+		    User bryan
 		    Port 2222
 		    IdentityFile ~/.ssh/id_ed25519
 		```
@@ -136,7 +136,7 @@ This is the highest-leverage file in the whole setup. It turns
 
 		Host homelab
 		    HostName 10.0.0.14
-		    User brian
+		    User bryan
 		    Port 2222
 		    IdentityFile ~/.ssh/id_ed25519
 		```
@@ -173,7 +173,7 @@ The options worth knowing:
 ```text title="~/.ssh/config"
 Host private-box
     HostName 10.0.1.50
-    User brian
+    User bryan
     ProxyJump bastion.example.com
 ```
 
@@ -270,25 +270,25 @@ text begins `-----BEGIN OPENSSH PRIVATE KEY-----`, you have the wrong file.
 		Windows has no `ssh-copy-id`. Pipe it over an existing password session:
 
 		```powershell
-		Get-Content $env:USERPROFILE\.ssh\id_ed25519.pub | ssh brian@10.0.0.14 "mkdir -p ~/.ssh && chmod 700 ~/.ssh && cat >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys"
+		Get-Content $env:USERPROFILE\.ssh\id_ed25519.pub | ssh bryan@10.0.0.14 "mkdir -p ~/.ssh && chmod 700 ~/.ssh && cat >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys"
 		```
 	</TabItem>
 	<TabItem label="Linux">
 		```bash
-		ssh-copy-id -i ~/.ssh/id_ed25519.pub brian@10.0.0.14
+		ssh-copy-id -i ~/.ssh/id_ed25519.pub bryan@10.0.0.14
 		```
 
 		If the server is on a non-standard port:
 
 		```bash
-		ssh-copy-id -i ~/.ssh/id_ed25519.pub -p 2222 brian@10.0.0.14
+		ssh-copy-id -i ~/.ssh/id_ed25519.pub -p 2222 bryan@10.0.0.14
 		```
 	</TabItem>
 	<TabItem label="macOS">
 		`ssh-copy-id` ships with macOS:
 
 		```bash
-		ssh-copy-id -i ~/.ssh/id_ed25519.pub brian@10.0.0.14
+		ssh-copy-id -i ~/.ssh/id_ed25519.pub bryan@10.0.0.14
 		```
 	</TabItem>
 </Tabs>

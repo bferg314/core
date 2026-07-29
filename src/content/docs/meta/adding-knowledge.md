@@ -73,7 +73,7 @@ reader being **you, in a hurry, six months from now.**
   paragraph to find the one line they need.
 - **One code block per step.** A block should be safe to copy whole and paste
   into a terminal. Don't mix a command and its output in one block.
-- **Real values, not metasyntax.** Write `ssh-keygen -t ed25519 -C "brian@desktop"`,
+- **Real values, not metasyntax.** Write `ssh-keygen -t ed25519 -C "bryan@desktop"`,
   not `ssh-keygen -t <type> -C "<comment>"`. Concrete examples are faster to adapt.
 - **Say which shell and which OS.** A block that only works in PowerShell must
   say so. Use tabs (below) when a task differs by platform.
