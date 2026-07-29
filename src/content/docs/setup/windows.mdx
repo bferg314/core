@@ -1,0 +1,228 @@
+---
+title: New Windows Machine
+description: Provision a fresh Windows install — winget package sets, terminal and shell config, WSL, and sensible defaults.
+sidebar:
+  order: 1
+  label: Windows
+---
+
+import { Steps } from '@astrojs/starlight/components';
+
+A fresh Windows box, in order. Everything here is scriptable — the goal is to
+get from a clean install to working without clicking through installers.
+
+## Update first
+
+```powershell
+winget upgrade --all --include-unknown
+```
+
+`winget` ships with Windows 11. If it's missing, install **App Installer** from
+the Microsoft Store.
+
+## Allow local scripts
+
+Needed before a PowerShell profile or any local `.ps1` will run. From an
+**Administrator** PowerShell:
+
+```powershell
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope LocalMachine
+```
+
+`RemoteSigned` runs your own scripts but requires a signature on anything
+downloaded — the right balance for a workstation.
+
+## Install the essentials
+
+One command, no prompts. Trim this list to taste; it's the baseline.
+
+```powershell
+winget install --id Git.Git -e --accept-package-agreements --accept-source-agreements
+winget install --id Microsoft.PowerShell -e
+winget install --id Microsoft.WindowsTerminal -e
+winget install --id Microsoft.VisualStudioCode -e
+winget install --id OpenJS.NodeJS.LTS -e
+winget install --id Python.Python.3.13 -e
+winget install --id 7zip.7zip -e
+winget install --id Mozilla.Firefox -e
+winget install --id VideoLAN.VLC -e
+winget install --id Notepad2mod.Notepad2mod -e
+```
+
+`-e` means exact ID match, so you don't get a surprise package with a similar
+name.
+
+:::tip[Do this on the machine you're replacing]
+Export what's already installed, then replay it on the new box:
+
+```powershell
+winget export -o C:\winget-packages.json
+```
+
+```powershell
+winget import -i C:\winget-packages.json --accept-package-agreements
+```
+
+`import` skips anything unavailable rather than failing the whole run.
+:::
+
+## Configure git
+
+```powershell
+git config --global user.name "Brian Ferguson"
+git config --global user.email "ninjabreath@gmail.com"
+git config --global init.defaultBranch main
+git config --global pull.rebase true
+git config --global core.autocrlf input
+git config --global diff.colorMoved zebra
+```
+
+`core.autocrlf input` keeps LF endings in the repository while letting Windows
+tools see what they expect on checkout.
+
+Then set up authentication — see [SSH Keys](../howto/ssh-keys.mdx).
+
+## Set up a PowerShell profile
+
+Your profile is a script that runs at every shell start. Create it if it doesn't
+exist:
+
+```powershell
+if (!(Test-Path $PROFILE)) { New-Item -ItemType File -Path $PROFILE -Force }
+notepad $PROFILE
+```
+
+A starting point:
+
+```powershell title="$PROFILE"
+# Bash-style navigation and listing
+Set-Alias ll Get-ChildItem
+Set-Alias which Get-Command
+function .. { Set-Location .. }
+function ... { Set-Location ..\.. }
+
+# Git shortcuts
+function gs { git status }
+function gd { git diff }
+function gl { git log --oneline --graph --decorate -20 }
+
+# Jump to the code directory
+function repo { Set-Location "$env:USERPROFILE\git" }
+
+# Better history search: type a prefix, press Up
+Set-PSReadLineOption -PredictionSource History
+Set-PSReadLineKeyHandler -Key UpArrow -Function HistorySearchBackward
+Set-PSReadLineKeyHandler -Key DownArrow -Function HistorySearchForward
+```
+
+Reload without restarting:
+
+```powershell
+. $PROFILE
+```
+
+:::note
+`$PROFILE` differs between Windows PowerShell 5.1 and PowerShell 7 (`pwsh`).
+Setting one does not affect the other. Run `echo $PROFILE` in whichever shell
+you actually use.
+:::
+
+## Install WSL
+
+```powershell
+wsl --install
+```
+
+That enables the required features and installs Ubuntu. Reboot when asked, then
+set a username and password at first launch.
+
+Useful follow-ups:
+
+```powershell
+wsl --list --online          # other distros available
+wsl --install -d Debian      # install a specific one
+wsl --set-default Ubuntu     # pick the default
+wsl --shutdown               # restart the VM after config changes
+```
+
+Cap WSL's memory and CPU use, which otherwise grows to half your RAM:
+
+```ini title="%USERPROFILE%\.wslconfig"
+[wsl2]
+memory=8GB
+processors=4
+swap=2GB
+localhostForwarding=true
+```
+
+Run `wsl --shutdown` for that to take effect.
+
+Once inside the distro, follow [the Linux runbook](linux.mdx) — the package and
+shell sections apply unchanged.
+
+## Windows Terminal
+
+Settings live in a JSON file you can version-control. Open it with
+<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>,</kbd>. The settings worth changing
+immediately:
+
+```json
+{
+	"defaultProfile": "{574e775e-4f2a-5b96-ac1e-a2962a402336}",
+	"copyOnSelect": true,
+	"profiles": {
+		"defaults": {
+			"font": { "face": "Cascadia Code", "size": 11 },
+			"scrollbarState": "hidden"
+		}
+	}
+}
+```
+
+Set `defaultProfile` to the PowerShell 7 GUID listed in your own file rather
+than copying that one.
+
+## Sensible system defaults
+
+Show file extensions and hidden files — the two defaults that cause real
+problems:
+
+```powershell
+Set-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced' -Name HideFileExt -Value 0
+Set-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced' -Name Hidden -Value 1
+Stop-Process -Name explorer -Force
+```
+
+Explorer restarts on its own; the taskbar flickering once is expected.
+
+Set the machine name:
+
+```powershell
+Rename-Computer -NewName "desktop" -Restart
+```
+
+Turn on Developer Mode, which allows symlinks without elevation:
+
+```powershell
+Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock' -Name AllowDevelopmentWithoutDevLicense -Value 1
+```
+
+## Check what's slowing down boot
+
+```powershell
+Get-CimInstance Win32_StartupCommand | Select-Object Name, Command, Location | Format-Table -AutoSize
+```
+
+## Verify
+
+<Steps>
+
+1. `git --version`, `node --version`, `python --version` all respond.
+
+2. `ssh -T git@github.com` authenticates.
+
+3. `wsl -l -v` shows a distro in state `Running` or `Stopped`.
+
+4. A new terminal loads your profile — `gs` in a repo runs `git status`.
+
+</Steps>

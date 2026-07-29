@@ -1,0 +1,59 @@
+---
+title: Short Task Name
+description: One sentence saying what the reader will have accomplished by the end.
+---
+
+import { Tabs, TabItem, Steps } from '@astrojs/starlight/components';
+
+One or two lines of context: what this is for, and when you'd reach for it.
+Delete this file's boilerplate as you go — see `meta/adding-knowledge` for the
+conventions.
+
+## First step
+
+Lead with the command, explain underneath.
+
+```bash
+the-command --with-real-flags
+```
+
+Why that flag matters, if it isn't obvious.
+
+## A step that differs by platform
+
+<Tabs syncKey="os">
+	<TabItem label="Windows">
+		```powershell
+		Get-Something
+		```
+	</TabItem>
+	<TabItem label="Linux">
+		```bash
+		sudo apt install -y something
+		```
+	</TabItem>
+</Tabs>
+
+## A file you need to create
+
+```ini title="~/.config/thing/config"
+key = value
+```
+
+:::caution
+Warn here if a step is destructive or hard to undo.
+:::
+
+## Verify
+
+<Steps>
+
+1. The check that proves it worked.
+
+2. The second check.
+
+</Steps>
+
+## Troubleshooting
+
+**Error message you'll actually see.** What causes it and the fix.

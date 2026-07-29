@@ -1,0 +1,297 @@
+---
+title: New Linux Machine
+description: Provision a fresh Debian or Ubuntu system — packages, users, SSH hardening, firewall, and automatic updates.
+sidebar:
+  order: 2
+  label: Linux
+---
+
+import { Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+
+Written for Debian/Ubuntu. Commands assume you start as `root` or a user with
+`sudo`, on a box you just got shell access to.
+
+## Update and install essentials
+
+```bash
+sudo apt update && sudo apt upgrade -y
+```
+
+```bash
+sudo apt install -y \
+  build-essential curl wget git vim \
+  htop ncdu tree jq unzip \
+  ca-certificates gnupg \
+  ufw fail2ban unattended-upgrades \
+  tmux rsync net-tools dnsutils
+```
+
+What's less obvious in that list:
+
+- **`ncdu`** — disk usage as a browsable tree. The fastest way to find what
+  filled a partition.
+- **`jq`** — JSON on the command line. Indispensable once anything speaks an API.
+- **`build-essential`** — the compiler toolchain, needed by most language package
+  managers that build native extensions.
+
+## Set hostname and timezone
+
+```bash
+sudo hostnamectl set-hostname homelab
+sudo timedatectl set-timezone America/New_York
+```
+
+Make sure the hostname also resolves locally, or `sudo` gets slow and some
+services complain:
+
+```bash
+echo "127.0.1.1 homelab" | sudo tee -a /etc/hosts
+```
+
+List timezones with `timedatectl list-timezones`.
+
+## Create your user
+
+Never work as root day to day.
+
+```bash
+sudo adduser brian
+sudo usermod -aG sudo brian
+```
+
+On Debian the group is `sudo`; on RHEL-family systems it's `wheel`.
+
+Verify before you log out of the root session — a broken sudo setup on a remote
+box with root login disabled is how you lose access:
+
+```bash
+su - brian -c "sudo -n true && echo 'sudo works'"
+```
+
+### Optional: passwordless sudo
+
+Convenient for a personal machine, a real reduction in security on anything
+shared or exposed.
+
+```bash
+echo "brian ALL=(ALL) NOPASSWD:ALL" | sudo tee /etc/sudoers.d/brian
+sudo chmod 440 /etc/sudoers.d/brian
+```
+
+:::caution
+Always validate sudoers changes. A syntax error there locks out `sudo`
+completely, and the only fix is single-user mode or a rescue console.
+
+```bash
+sudo visudo -c
+```
+:::
+
+## Set up SSH keys
+
+Get your key onto the box before touching the SSH daemon config:
+
+```bash
+mkdir -p ~/.ssh && chmod 700 ~/.ssh
+```
+
+Paste your public key in:
+
+```bash
+echo "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI... brian@desktop" >> ~/.ssh/authorized_keys
+chmod 600 ~/.ssh/authorized_keys
+```
+
+Full details in [SSH Keys](../howto/ssh-keys.mdx). Confirm you can log in with
+the key from another terminal **before** the next section.
+
+## Lock down SSH
+
+Use a drop-in file rather than editing `/etc/ssh/sshd_config`. Package upgrades
+leave drop-ins alone, and reverting means deleting one file.
+
+```bash title="/etc/ssh/sshd_config.d/99-hardening.conf"
+PermitRootLogin no
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+PubkeyAuthentication yes
+X11Forwarding no
+MaxAuthTries 3
+AllowUsers brian
+```
+
+Validate the config before restarting — this is the step that saves you:
+
+```bash
+sudo sshd -t
+```
+
+Only if that prints nothing:
+
+```bash
+sudo systemctl restart ssh
+```
+
+<Tabs syncKey="distro">
+	<TabItem label="Ubuntu 22.04+ / Debian 12">
+		The service is `ssh`. Newer systems use socket activation, so a config change
+		to `Port` also needs:
+
+		```bash
+		sudo systemctl restart ssh.socket
+		```
+	</TabItem>
+	<TabItem label="Older / RHEL">
+		The service is named `sshd`:
+
+		```bash
+		sudo systemctl restart sshd
+		```
+	</TabItem>
+</Tabs>
+
+:::danger
+Keep your current SSH session open and test the new config from a **second**
+terminal. If you've locked yourself out, the still-open session is your only way
+to fix it.
+:::
+
+## Firewall
+
+`ufw` denies inbound by default once enabled, so allow SSH first.
+
+```bash
+sudo ufw default deny incoming
+sudo ufw default allow outgoing
+sudo ufw allow OpenSSH
+sudo ufw enable
+```
+
+Common additions:
+
+```bash
+sudo ufw allow 80,443/tcp              # web
+sudo ufw allow from 10.0.0.0/24        # anything on the LAN
+sudo ufw allow 2222/tcp comment 'ssh alt port'
+```
+
+```bash
+sudo ufw status numbered
+```
+
+Remove a rule by its number from that listing:
+
+```bash
+sudo ufw delete 3
+```
+
+## Automatic security updates
+
+```bash
+sudo dpkg-reconfigure --priority=low unattended-upgrades
+```
+
+To also get automatic reboots when a kernel update needs one:
+
+```bash title="/etc/apt/apt.conf.d/50unattended-upgrades"
+Unattended-Upgrade::Automatic-Reboot "true";
+Unattended-Upgrade::Automatic-Reboot-Time "04:00";
+```
+
+Check that it's actually running:
+
+```bash
+sudo unattended-upgrade --dry-run --debug
+```
+
+## Ban repeat offenders
+
+`fail2ban` watches auth logs and blocks IPs that keep failing. With password auth
+already disabled the risk is low, but it keeps the logs readable.
+
+```bash title="/etc/fail2ban/jail.local"
+[sshd]
+enabled = true
+maxretry = 3
+bantime = 1h
+findtime = 10m
+```
+
+```bash
+sudo systemctl enable --now fail2ban
+sudo fail2ban-client status sshd
+```
+
+## Shell setup
+
+```bash title="~/.bashrc"
+# History: bigger, deduplicated, shared between sessions
+HISTSIZE=50000
+HISTFILESIZE=100000
+HISTCONTROL=ignoreboth:erasedups
+shopt -s histappend cmdhist checkwinsize
+
+# Safety on destructive commands
+alias rm='rm -i'
+alias cp='cp -i'
+alias mv='mv -i'
+
+# Everyday shortcuts
+alias ll='ls -alhF --color=auto'
+alias ..='cd ..'
+alias ports='ss -tulpn'
+alias df='df -h'
+alias gs='git status'
+alias gl='git log --oneline --graph --decorate -20'
+```
+
+```bash
+source ~/.bashrc
+```
+
+## Useful diagnostics
+
+What's listening, and which process owns it:
+
+```bash
+ss -tulpn
+```
+
+Why did the last boot take so long:
+
+```bash
+systemd-analyze blame | head -20
+```
+
+What failed:
+
+```bash
+systemctl --failed
+journalctl -p err -b --no-pager
+```
+
+What's eating the disk:
+
+```bash
+ncdu /
+```
+
+Follow a service's logs live:
+
+```bash
+journalctl -u ssh -f
+```
+
+## Verify
+
+<Steps>
+
+1. Key-based login works from your workstation, and `ssh root@host` is refused.
+
+2. `sudo ufw status` shows `active` with SSH allowed.
+
+3. `systemctl --failed` lists nothing.
+
+4. `sudo unattended-upgrade --dry-run` completes without error.
+
+</Steps>

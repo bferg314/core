@@ -1,0 +1,60 @@
+---
+title: Core
+description: A personal knowledge base — technical how-tos, machine setup runbooks, and things worth thinking about.
+template: splash
+hero:
+  tagline: Everything I don't want to look up twice.
+  actions:
+    - text: Set up a new machine
+      link: /core/setup/windows/
+      icon: right-arrow
+    - text: How to add knowledge
+      link: /core/meta/adding-knowledge/
+      icon: document
+      variant: minimal
+---
+
+import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
+
+<CardGrid>
+	<Card title="Machine Setup" icon="laptop">
+		Start-to-finish runbooks for a fresh Windows or Linux box. Install lists,
+		dotfiles, shell config, the works.
+	</Card>
+	<Card title="How-To" icon="puzzle">
+		Step-by-step guides for the things that never quite stick — SSH keys, agent
+		config, remote access.
+	</Card>
+	<Card title="Cheatsheets" icon="list-format">
+		Dense command references to scan and copy, not read start to finish.
+	</Card>
+	<Card title="Philosophy" icon="comment-alt">
+		The non-technical half. Ideas, principles, and notes worth keeping.
+	</Card>
+</CardGrid>
+
+## Jump in
+
+<LinkCard
+	title="SSH keys, start to finish"
+	description="Generate a key, load an agent on Windows and Linux, push it to GitHub and to a server."
+	href="/core/howto/ssh-keys/"
+/>
+
+<LinkCard
+	title="New Windows machine"
+	description="A winget-driven setup for a fresh Windows install."
+	href="/core/setup/windows/"
+/>
+
+<LinkCard
+	title="New Linux machine"
+	description="Users, sudo, SSH hardening, firewall, and the essentials."
+	href="/core/setup/linux/"
+/>
+
+<LinkCard
+	title="Adding knowledge"
+	description="The conventions for adding a page — read this before you (or an agent) write one."
+	href="/core/meta/adding-knowledge/"
+/>

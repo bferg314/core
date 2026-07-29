@@ -1,0 +1,357 @@
+---
+title: SSH Keys
+description: Generate an SSH key, run an agent on Windows or Linux, and load the key onto GitHub and a remote server.
+sidebar:
+  order: 1
+---
+
+import { Tabs, TabItem, Steps } from '@astrojs/starlight/components';
+
+Everything about SSH keys, in the order you actually need it.
+
+## Generate a key
+
+One key per machine, named after the machine. `ed25519` is the right default —
+smaller and faster than RSA, and supported everywhere that matters.
+
+```bash
+ssh-keygen -t ed25519 -C "brian@desktop"
+```
+
+Press Enter to accept the default path (`~/.ssh/id_ed25519`). Set a passphrase;
+the agent below means you only type it once per boot.
+
+To keep several keys straight, name the file explicitly instead:
+
+```bash
+ssh-keygen -t ed25519 -C "brian@desktop" -f ~/.ssh/id_ed25519_work
+```
+
+:::caution
+`ssh-keygen` will happily overwrite an existing key if you point it at one, and
+anything authorized with that key stops working. Check what you have first:
+`ls -l ~/.ssh/`
+:::
+
+If you're on a system too old for `ed25519`, use a 4096-bit RSA key:
+
+```bash
+ssh-keygen -t rsa -b 4096 -C "brian@desktop"
+```
+
+## Start the agent
+
+The agent holds your decrypted key in memory so you're not retyping the
+passphrase on every connection.
+
+<Tabs syncKey="os">
+	<TabItem label="Windows">
+		Windows ships OpenSSH, but the agent service is off by default. Run this
+		once from an **Administrator** PowerShell:
+
+		```powershell
+		Set-Service ssh-agent -StartupType Automatic
+		Start-Service ssh-agent
+		```
+
+		Then, as your normal user, add the key:
+
+		```powershell
+		ssh-add $env:USERPROFILE\.ssh\id_ed25519
+		```
+
+		The key persists across reboots — the service reloads it from its own
+		encrypted store, so this is genuinely a one-time step.
+
+		```powershell
+		ssh-add -l
+		```
+	</TabItem>
+	<TabItem label="Linux">
+		Most desktop sessions start an agent for you. Check before starting another:
+
+		```bash
+		ssh-add -l
+		```
+
+		If it says "Could not open a connection to your authentication agent",
+		start one in the current shell:
+
+		```bash
+		eval "$(ssh-agent -s)"
+		ssh-add ~/.ssh/id_ed25519
+		```
+
+		To have it happen automatically on login, add `AddKeysToAgent yes` to your
+		SSH config (below) — the agent then loads keys on first use instead of
+		needing an explicit `ssh-add`.
+	</TabItem>
+	<TabItem label="macOS">
+		macOS runs an agent already and can store the passphrase in the Keychain:
+
+		```bash
+		ssh-add --apple-use-keychain ~/.ssh/id_ed25519
+		```
+
+		Pair it with `UseKeychain yes` in your config so it survives reboots.
+	</TabItem>
+</Tabs>
+
+## Write an SSH config
+
+This is the highest-leverage file in the whole setup. It turns
+`ssh -i ~/.ssh/id_ed25519_work -p 2222 brian@10.0.0.14` into `ssh homelab`.
+
+<Tabs syncKey="os">
+	<TabItem label="Windows">
+		```text title="%USERPROFILE%\.ssh\config"
+		Host *
+		    AddKeysToAgent yes
+		    ServerAliveInterval 60
+
+		Host github.com
+		    HostName github.com
+		    User git
+		    IdentityFile ~/.ssh/id_ed25519
+		    IdentitiesOnly yes
+
+		Host homelab
+		    HostName 10.0.0.14
+		    User brian
+		    Port 2222
+		    IdentityFile ~/.ssh/id_ed25519
+		```
+	</TabItem>
+	<TabItem label="Linux">
+		```text title="~/.ssh/config"
+		Host *
+		    AddKeysToAgent yes
+		    ServerAliveInterval 60
+
+		Host github.com
+		    HostName github.com
+		    User git
+		    IdentityFile ~/.ssh/id_ed25519
+		    IdentitiesOnly yes
+
+		Host homelab
+		    HostName 10.0.0.14
+		    User brian
+		    Port 2222
+		    IdentityFile ~/.ssh/id_ed25519
+		```
+	</TabItem>
+	<TabItem label="macOS">
+		```text title="~/.ssh/config"
+		Host *
+		    AddKeysToAgent yes
+		    UseKeychain yes
+		    ServerAliveInterval 60
+
+		Host github.com
+		    HostName github.com
+		    User git
+		    IdentityFile ~/.ssh/id_ed25519
+		    IdentitiesOnly yes
+		```
+	</TabItem>
+</Tabs>
+
+The options worth knowing:
+
+- **`IdentitiesOnly yes`** — only offer the key named here. Without it SSH offers
+  every key it knows about, and servers that count failed attempts will lock you
+  out before reaching the right one.
+- **`AddKeysToAgent yes`** — load the key into the agent on first use.
+- **`ServerAliveInterval 60`** — send a keepalive every minute so idle sessions
+  don't get dropped by a NAT or firewall.
+- **`Host *`** — applies to everything. First match wins for any given option, so
+  keep the wildcard block at the top only for defaults you never override.
+
+### Jumping through a bastion
+
+```text title="~/.ssh/config"
+Host private-box
+    HostName 10.0.1.50
+    User brian
+    ProxyJump bastion.example.com
+```
+
+`ssh private-box` now transparently hops through the bastion. No agent
+forwarding needed, which is the safer choice.
+
+## Fix the permissions
+
+SSH silently refuses to use keys that other users can read. This is the single
+most common reason a correct key gets rejected.
+
+<Tabs syncKey="os">
+	<TabItem label="Windows">
+		NTFS permissions rather than Unix modes. Strip inheritance and grant only
+		yourself:
+
+		```powershell
+		icacls $env:USERPROFILE\.ssh\id_ed25519 /inheritance:r
+		icacls $env:USERPROFILE\.ssh\id_ed25519 /grant:r "$($env:USERNAME):(R)"
+		```
+	</TabItem>
+	<TabItem label="Linux">
+		```bash
+		chmod 700 ~/.ssh
+		chmod 600 ~/.ssh/id_ed25519
+		chmod 644 ~/.ssh/id_ed25519.pub
+		chmod 600 ~/.ssh/config
+		```
+	</TabItem>
+	<TabItem label="macOS">
+		```bash
+		chmod 700 ~/.ssh
+		chmod 600 ~/.ssh/id_ed25519
+		chmod 644 ~/.ssh/id_ed25519.pub
+		```
+	</TabItem>
+</Tabs>
+
+On the **server** side, the same applies to the account you're logging into:
+
+```bash
+chmod 700 ~/.ssh
+chmod 600 ~/.ssh/authorized_keys
+```
+
+## Add the key to GitHub
+
+<Steps>
+
+1. Copy the **public** key to your clipboard.
+
+   <Tabs syncKey="os">
+   	<TabItem label="Windows">
+   		```powershell
+   		Get-Content $env:USERPROFILE\.ssh\id_ed25519.pub | Set-Clipboard
+   		```
+   	</TabItem>
+   	<TabItem label="Linux">
+   		```bash
+   		cat ~/.ssh/id_ed25519.pub
+   		```
+   	</TabItem>
+   	<TabItem label="macOS">
+   		```bash
+   		pbcopy < ~/.ssh/id_ed25519.pub
+   		```
+   	</TabItem>
+   </Tabs>
+
+2. Paste it at [github.com/settings/keys](https://github.com/settings/keys) →
+   **New SSH key**. Title it after the machine.
+
+3. Verify:
+
+   ```bash
+   ssh -T git@github.com
+   ```
+
+   Expect `Hi bferg314! You've successfully authenticated, but GitHub does not
+   provide shell access.` That's success — the "does not provide shell access"
+   part is not an error.
+
+</Steps>
+
+:::tip
+Only ever share the `.pub` file. If a command asks you to paste a key and the
+text begins `-----BEGIN OPENSSH PRIVATE KEY-----`, you have the wrong file.
+:::
+
+## Add the key to a server
+
+<Tabs syncKey="os">
+	<TabItem label="Windows">
+		Windows has no `ssh-copy-id`. Pipe it over an existing password session:
+
+		```powershell
+		Get-Content $env:USERPROFILE\.ssh\id_ed25519.pub | ssh brian@10.0.0.14 "mkdir -p ~/.ssh && chmod 700 ~/.ssh && cat >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys"
+		```
+	</TabItem>
+	<TabItem label="Linux">
+		```bash
+		ssh-copy-id -i ~/.ssh/id_ed25519.pub brian@10.0.0.14
+		```
+
+		If the server is on a non-standard port:
+
+		```bash
+		ssh-copy-id -i ~/.ssh/id_ed25519.pub -p 2222 brian@10.0.0.14
+		```
+	</TabItem>
+	<TabItem label="macOS">
+		`ssh-copy-id` ships with macOS:
+
+		```bash
+		ssh-copy-id -i ~/.ssh/id_ed25519.pub brian@10.0.0.14
+		```
+	</TabItem>
+</Tabs>
+
+Confirm key auth works **before** disabling passwords:
+
+```bash
+ssh -o PreferredAuthentications=publickey homelab
+```
+
+Once that succeeds, harden the server as described in
+[the Linux setup runbook](../setup/linux.mdx#lock-down-ssh).
+
+## Troubleshooting
+
+When a connection fails, the verbose output almost always names the reason:
+
+```bash
+ssh -vvv homelab
+```
+
+Read for these lines:
+
+- `Offering public key: ...` — which keys were tried, in order.
+- `Authentications that can continue: publickey,password` — what the server accepts.
+- `Permissions 0644 for '...' are too open` — fix the modes, see above.
+- `no mutual signature algorithm` — an old server rejecting a modern key. Add
+  `PubkeyAcceptedAlgorithms +ssh-rsa` to that `Host` block.
+
+Which key is the agent actually holding?
+
+```bash
+ssh-add -l
+```
+
+Get a key's fingerprint to compare against what GitHub or the server lists:
+
+```bash
+ssh-keygen -lf ~/.ssh/id_ed25519.pub
+```
+
+Host key changed after a rebuild, and SSH is refusing to connect:
+
+```bash
+ssh-keygen -R 10.0.0.14
+```
+
+:::danger
+Only remove a host key when you know why it changed — a rebuild, a new SSH
+install, a fresh VM. An unexplained change is what a machine-in-the-middle
+attack looks like.
+:::
+
+## Recover the public key from a private key
+
+Lost the `.pub` file but still have the private key:
+
+```bash
+ssh-keygen -y -f ~/.ssh/id_ed25519 > ~/.ssh/id_ed25519.pub
+```
+
+## Change a passphrase
+
+```bash
+ssh-keygen -p -f ~/.ssh/id_ed25519
+```
