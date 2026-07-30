@@ -38,9 +38,11 @@ One command, no prompts. Trim this list to taste; it's the baseline.
 
 ```powershell
 winget install --id Git.Git -e --accept-package-agreements --accept-source-agreements
+winget install --id GitHub.cli -e
 winget install --id Microsoft.PowerShell -e
 winget install --id Microsoft.WindowsTerminal -e
 winget install --id Microsoft.VisualStudioCode -e
+winget install --id vim.vim -e
 winget install --id OpenJS.NodeJS.LTS -e
 winget install --id Python.Python.3.13 -e
 winget install --id 7zip.7zip -e
@@ -49,8 +51,34 @@ winget install --id VideoLAN.VLC -e
 winget install --id Notepad2mod.Notepad2mod -e
 ```
 
+Then the desktop layer — launcher, notes, search, and the utilities that only
+matter once you're actually using the machine:
+
+```powershell
+winget install --id Obsidian.Obsidian -e
+winget install --id Flow-Launcher.Flow-Launcher -e
+winget install --id voidtools.Everything -e
+winget install --id ZhornSoftware.Caffeine -e
+winget install --id Balena.Etcher -e
+winget install --id mRemoteNG.mRemoteNG -e
+winget install --id Telegram.TelegramDesktop -e
+```
+
 `-e` means exact ID match, so you don't get a surprise package with a similar
 name.
+
+What earns its place in that second list:
+
+- **Flow Launcher** — <kbd>Alt</kbd>+<kbd>Space</kbd> to launch anything. Plugins
+  for calculator, unit conversion, and web search.
+- **Everything** — filename search that returns results as you type, across the
+  whole disk. It indexes the NTFS journal directly, so it's instant where Windows
+  Search isn't.
+- **Caffeine** — keeps the machine awake without touching the power plan. Useful
+  during a long build or a remote session.
+- **balenaEtcher** — writes bootable USB images and verifies them afterward.
+- **mRemoteNG** — one tabbed window for every RDP, SSH, and VNC session, with
+  saved connections.
 
 :::tip[Do this on the machine you're replacing]
 Export what's already installed, then replay it on the new box:
@@ -81,6 +109,20 @@ git config --global diff.colorMoved zebra
 tools see what they expect on checkout.
 
 Then set up authentication — see [SSH Keys](../howto/ssh-keys.mdx).
+
+Log the GitHub CLI in as well. It handles its own token, separately from your SSH
+key, and it's what makes `gh repo create`, `gh pr`, and `gh run` work:
+
+```powershell
+gh auth login --git-protocol ssh --hostname github.com --web
+```
+
+Pick **SSH** as the protocol so clones match the key you just set up. Check it
+later with:
+
+```powershell
+gh auth status
+```
 
 ## Set up a PowerShell profile
 
@@ -219,7 +261,7 @@ Get-CimInstance Win32_StartupCommand | Select-Object Name, Command, Location | F
 
 1. `git --version`, `node --version`, `python --version` all respond.
 
-2. `ssh -T git@github.com` authenticates.
+2. `ssh -T git@github.com` authenticates, and `gh auth status` shows you logged in.
 
 3. `wsl -l -v` shows a distro in state `Running` or `Stopped`.
 

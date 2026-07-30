@@ -1,0 +1,237 @@
+---
+title: Install Docker
+description: Install Docker Engine on Debian, Fedora, or Arch, and Docker Desktop on Windows or macOS — then verify it actually works.
+sidebar:
+  order: 2
+---
+
+import { Tabs, TabItem, Steps } from '@astrojs/starlight/components';
+
+On Linux you install **Docker Engine** and get a daemon. On Windows and macOS you
+install **Docker Desktop**, which runs that same engine inside a Linux VM. The
+`docker` command is identical either way; everything before it differs.
+
+:::caution
+Don't install from your distro's own `docker.io` / `docker` package if you want
+current versions or Compose v2 — those lag badly. Use Docker's repository, below.
+:::
+
+## Install
+
+<Tabs syncKey="os">
+	<TabItem label="Linux">
+		<Tabs syncKey="distro">
+			<TabItem label="Debian/Ubuntu">
+				Remove anything older first, or the new packages will conflict:
+
+				```bash
+				for p in docker.io docker-doc docker-compose podman-docker containerd runc; do sudo apt remove -y $p; done
+				```
+
+				Add Docker's GPG key:
+
+				```bash
+				sudo apt update && sudo apt install -y ca-certificates curl
+				sudo install -m 0755 -d /etc/apt/keyrings
+				sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+				sudo chmod a+r /etc/apt/keyrings/docker.asc
+				```
+
+				Add the repository:
+
+				```bash
+				echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "${UBUNTU_CODENAME:-$VERSION_CODENAME}") stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+				```
+
+				On **Debian** rather than Ubuntu, change both `linux/ubuntu` paths to
+				`linux/debian`. The `${UBUNTU_CODENAME:-$VERSION_CODENAME}` part matters
+				on derivatives — plain `lsb_release -cs` returns `wilma` on Mint, which
+				Docker has no repository for.
+
+				Install:
+
+				```bash
+				sudo apt update
+				sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+				```
+			</TabItem>
+			<TabItem label="Fedora">
+				```bash
+				sudo dnf -y install dnf-plugins-core
+				sudo dnf config-manager --add-repo https://download.docker.com/linux/fedora/docker-ce.repo
+				```
+
+				On Fedora 41 and newer, `dnf5` renamed that subcommand:
+
+				```bash
+				sudo dnf config-manager addrepo --from-repofile=https://download.docker.com/linux/fedora/docker-ce.repo
+				```
+
+				```bash
+				sudo dnf install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+				```
+			</TabItem>
+			<TabItem label="Arch">
+				Docker is in the official repositories and current, so no third-party
+				repo is needed:
+
+				```bash
+				sudo pacman -Syu
+				sudo pacman -S docker docker-compose docker-buildx
+				```
+			</TabItem>
+		</Tabs>
+
+		Then continue to [Start the daemon](#start-the-daemon).
+	</TabItem>
+	<TabItem label="Windows">
+		Docker Desktop needs WSL 2, hardware virtualization enabled in BIOS, and
+		Windows 10/11. Install WSL first if you haven't:
+
+		```powershell
+		wsl --install
+		```
+
+		```powershell
+		winget install --id Docker.DockerDesktop -e --accept-package-agreements
+		```
+
+		Reboot. Docker Desktop won't work until you do.
+
+		On first launch it'll ask to enable its WSL integration — accept, then
+		check **Settings → Resources → WSL Integration** and enable it for the
+		distro you actually work in, or `docker` won't be on your `PATH` there.
+
+		The daemon runs as part of Docker Desktop, so skip the next section and go
+		straight to [Verify](#verify).
+	</TabItem>
+	<TabItem label="macOS">
+		```bash
+		brew install --cask docker
+		```
+
+		Launch Docker from Applications once to let it install its privileged
+		helper. On Apple Silicon, add `--platform linux/amd64` to `docker run` for
+		images that have no arm64 build.
+	</TabItem>
+</Tabs>
+
+## Start the daemon
+
+Linux only — Docker Desktop handles this itself.
+
+```bash
+sudo systemctl enable --now docker
+```
+
+`--now` starts it and enables it at boot in one go.
+
+## Run docker without sudo
+
+```bash
+sudo usermod -aG docker $USER
+```
+
+Group membership is read at login, so this does nothing until you log out and
+back in. To get a working shell immediately without logging out:
+
+```bash
+newgrp docker
+```
+
+:::caution
+The `docker` group is root-equivalent. Anyone in it can start a container that
+mounts `/` and edits any file on the host — no password prompt, no audit trail.
+On a shared or exposed machine, use `sudo docker` instead, or set up
+[rootless mode](https://docs.docker.com/engine/security/rootless/).
+:::
+
+## Verify
+
+<Steps>
+
+1. The client and daemon both respond:
+
+   ```bash
+   docker version
+   ```
+
+   Two version blocks means the daemon is reachable. Only a `Client:` block means
+   it isn't — see below.
+
+2. Compose v2 is present as a subcommand, not a separate `docker-compose` binary:
+
+   ```bash
+   docker compose version
+   ```
+
+3. It can pull and run:
+
+   ```bash
+   docker run --rm hello-world
+   ```
+
+   `--rm` cleans up the container afterward, which the official instructions leave
+   out and which is why people end up with dozens of dead `hello-world`s.
+
+</Steps>
+
+## Troubleshooting
+
+**`permission denied while trying to connect to the Docker daemon socket`** — you
+aren't in the `docker` group yet, or you are but haven't started a new login
+session. Check with `id -nG`.
+
+**`Cannot connect to the Docker daemon. Is the docker daemon running?`** — on
+Linux, look at why it died:
+
+```bash
+systemctl status docker
+journalctl -xu docker --no-pager -n 50
+```
+
+On Windows, Docker Desktop isn't running or WSL 2 isn't available — `wsl --status`
+should report version 2 as the default.
+
+**Pulls fail with a DNS or TLS error** on a LAN with its own resolver:
+
+```bash title="/etc/docker/daemon.json"
+{
+  "dns": ["10.0.0.1", "1.1.1.1"]
+}
+```
+
+```bash
+sudo systemctl restart docker
+```
+
+**Everything is slow and the disk is full.** Docker never reclaims space on its
+own:
+
+```bash
+docker system df
+```
+
+```bash
+docker system prune
+```
+
+:::danger
+`docker system prune -a --volumes` also deletes **every volume not currently
+attached to a running container** — that's your databases. Run `docker volume ls`
+first and know what's in the list. Plain `prune` with no flags is the safe one.
+:::
+
+## Where to put your data
+
+Bind-mounted config and media wants a layout you pick once and never revisit.
+Containers that write as UID 1000 on a directory owned by root fail in confusing
+ways, so it's worth settling before the first `compose up`.
+
+For a fresh host, the rest of the machine setup is in
+[the Linux runbook](../setup/linux.mdx) — do the firewall and SSH sections before
+exposing any container to the network. Note that Docker publishes ports by
+writing its own `iptables` rules, which **bypass `ufw` entirely**: a container
+started with `-p 8080:80` is reachable from the LAN even when `ufw` says that
+port is denied. Bind to localhost (`-p 127.0.0.1:8080:80`) for anything that
+shouldn't be.
