@@ -2,7 +2,7 @@
 
 This repo is a personal knowledge base published with Astro Starlight to
 <https://bferg314.github.io/core>. Its content is technical how-tos, machine
-setup runbooks, cheatsheets, and philosophical writing.
+setup runbooks, and cheatsheets.
 
 **Most requests here are "add or edit a page," not "change the site."** Adding
 knowledge should touch exactly one Markdown file. If you find yourself editing
@@ -22,7 +22,6 @@ its own. There is no index to update.
 | `setup/` | Machine Setup | Provisioning a machine from scratch, one page per platform |
 | `howto/` | How-To | A single task with a beginning and an end |
 | `cheatsheets/` | Cheatsheets | Dense command references, meant to be scanned |
-| `philosophy/` | Philosophy | Non-technical writing, essays, principles |
 | `meta/` | Meta | Docs about this site itself |
 
 Creating a **new top-level folder** requires adding a `sidebar` entry in

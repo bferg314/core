@@ -57,10 +57,6 @@ export default defineConfig({
 					items: [{ autogenerate: { directory: 'cheatsheets' } }],
 				},
 				{
-					label: 'Philosophy',
-					items: [{ autogenerate: { directory: 'philosophy' } }],
-				},
-				{
 					label: 'Meta',
 					collapsed: true,
 					items: [{ autogenerate: { directory: 'meta' } }],
