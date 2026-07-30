@@ -1,7 +1,7 @@
 # Core
 
-A personal knowledge base: technical how-tos, machine setup runbooks,
-cheatsheets, and philosophical writing.
+A personal knowledge base: technical how-tos, machine setup runbooks, and
+cheatsheets.
 
 Published at **<https://bferg314.github.io/core>**.
 
@@ -20,7 +20,6 @@ src/content/docs/
 ├── setup/              # Machine Setup — provisioning a box from scratch
 ├── howto/              # How-To — one task, start to finish
 ├── cheatsheets/        # Cheatsheets — dense command references
-├── philosophy/         # Philosophy — non-technical writing
 └── meta/               # Meta — docs about this site
 ```
 

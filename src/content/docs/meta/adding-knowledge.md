@@ -24,7 +24,6 @@ section uses Starlight's `autogenerate`, so **the filesystem is the navigation.*
 | `setup/` | Machine Setup | Provisioning a machine from scratch. One page per platform. |
 | `howto/` | How-To | A single task with a beginning and an end. "Configure X", "Set up Y". |
 | `cheatsheets/` | Cheatsheets | Dense command references you scan, not read. |
-| `philosophy/` | Philosophy | Non-technical thinking. Essays, principles, notes. |
 | `meta/` | Meta | Docs about this site itself. |
 
 If a page doesn't fit any of these, put it in the closest match rather than
