@@ -23,6 +23,11 @@ export default defineConfig({
 			title: 'Core',
 			description:
 				'A personal knowledge base: technical how-tos, machine setup runbooks, and things worth thinking about.',
+
+			// `theme.css` retints the site-wide palette; `landing.css` styles the
+			// splash page and is scoped to the `[data-has-hero]` attribute that
+			// Starlight only sets on pages with a `hero` in their frontmatter.
+			customCss: ['./src/styles/theme.css', './src/styles/landing.css'],
 			social: [
 				{ icon: 'github', label: 'GitHub', href: 'https://github.com/bferg314/core' },
 			],

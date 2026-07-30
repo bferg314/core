@@ -1,0 +1,43 @@
+/*
+ * Site-wide palette.
+ *
+ * Starlight ships a blue accent on a cool blue-gray ramp. This swaps both for a
+ * teal accent on a slate ramp so the site reads as its own thing. Only colour
+ * tokens are touched — layout, spacing, and type are stock.
+ *
+ * These rules are unlayered, and Starlight's live in `@layer starlight.base`,
+ * so they win without `!important`.
+ */
+
+:root,
+::backdrop {
+	/* Dark mode — the default. */
+	--sl-color-gray-1: hsl(198, 20%, 94%);
+	--sl-color-gray-2: hsl(198, 8%, 78%);
+	--sl-color-gray-3: hsl(198, 8%, 56%);
+	--sl-color-gray-4: hsl(198, 9%, 36%);
+	--sl-color-gray-5: hsl(198, 12%, 22%);
+	--sl-color-gray-6: hsl(198, 16%, 14%);
+	--sl-color-black: hsl(198, 20%, 8%);
+
+	--sl-color-accent-low: hsl(186, 50%, 16%);
+	--sl-color-accent: hsl(186, 70%, 45%);
+	--sl-color-accent-high: hsl(178, 65%, 80%);
+}
+
+:root[data-theme='light'],
+[data-theme='light'] ::backdrop {
+	--sl-color-white: hsl(198, 22%, 10%);
+	--sl-color-gray-1: hsl(198, 18%, 16%);
+	--sl-color-gray-2: hsl(198, 12%, 24%);
+	--sl-color-gray-3: hsl(198, 9%, 38%);
+	--sl-color-gray-4: hsl(198, 8%, 56%);
+	--sl-color-gray-5: hsl(198, 10%, 78%);
+	--sl-color-gray-6: hsl(198, 22%, 94%);
+	--sl-color-gray-7: hsl(198, 24%, 97%);
+	--sl-color-black: hsl(0, 0%, 100%);
+
+	--sl-color-accent-high: hsl(190, 70%, 22%);
+	--sl-color-accent: hsl(190, 68%, 34%);
+	--sl-color-accent-low: hsl(184, 60%, 90%);
+}

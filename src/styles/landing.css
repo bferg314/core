@@ -1,0 +1,325 @@
+/*
+ * Landing-page styling.
+ *
+ * Everything here is scoped to `[data-has-hero]`, an attribute Starlight puts on
+ * <html> for any page with a `hero` in its frontmatter. Doc pages keep the stock
+ * look; only the splash page picks this up.
+ */
+
+[data-has-hero] {
+	/* The sparkle mark in the hero. */
+	--core-mark-from: hsl(178, 65%, 80%);
+	--core-mark-to: hsl(192, 75%, 46%);
+	--core-mark-glow: hsl(186, 70%, 50%, 0.35);
+
+	/* Ambient wash behind the hero. */
+	--core-wash-1: hsl(186, 70%, 45%, 0.18);
+	--core-wash-2: hsl(214, 70%, 52%, 0.14);
+
+	/* Cards. */
+	--core-card-bg: hsl(198, 16%, 14%, 0.5);
+	--core-card-bg-hover: hsl(198, 16%, 17%, 0.75);
+	--core-card-border: hsl(198, 12%, 22%);
+	--core-card-border-hover: hsl(186, 45%, 40%);
+	--core-card-shadow: 0 1rem 2rem -1rem hsl(198, 30%, 3%, 0.8);
+	--core-chip-bg: hsl(186, 60%, 50%, 0.12);
+	--core-chip-border: hsl(186, 60%, 50%, 0.3);
+
+	/* Hero call to action. */
+	--core-cta-from: hsl(178, 65%, 80%);
+	--core-cta-to: hsl(190, 70%, 65%);
+	--core-cta-glow: hsl(188, 70%, 45%, 0.45);
+}
+
+[data-has-hero][data-theme='light'] {
+	--core-mark-from: hsl(190, 70%, 30%);
+	--core-mark-to: hsl(176, 55%, 46%);
+	--core-mark-glow: hsl(188, 60%, 45%, 0.25);
+
+	--core-wash-1: hsl(186, 70%, 50%, 0.14);
+	--core-wash-2: hsl(214, 70%, 55%, 0.1);
+
+	--core-card-bg: hsl(198, 24%, 98%, 0.8);
+	--core-card-bg-hover: hsl(198, 30%, 96%, 1);
+	--core-card-border: hsl(198, 14%, 86%);
+	--core-card-border-hover: hsl(186, 45%, 55%);
+	--core-card-shadow: 0 1rem 2rem -1rem hsl(198, 30%, 40%, 0.35);
+	--core-chip-bg: hsl(186, 60%, 45%, 0.12);
+	--core-chip-border: hsl(186, 50%, 40%, 0.3);
+
+	--core-cta-from: hsl(190, 68%, 30%);
+	--core-cta-to: hsl(198, 70%, 38%);
+	--core-cta-glow: hsl(190, 60%, 40%, 0.35);
+}
+
+/*
+ * Two soft radial washes bleeding down from behind the nav. Painted as
+ * background images on <main> rather than a pseudo-element, so there is no
+ * stacking-context fight with the page content.
+ */
+[data-has-hero] main {
+	background-image:
+		radial-gradient(48rem 26rem at 15% -6rem, var(--core-wash-1), transparent 70%),
+		radial-gradient(40rem 22rem at 92% -2rem, var(--core-wash-2), transparent 72%);
+	background-repeat: no-repeat;
+}
+
+/* Hero ------------------------------------------------------------------- */
+
+/* Starlight's hero padding leaves a canyon above the section cards. */
+[data-has-hero] .hero {
+	padding-block-end: clamp(1.5rem, 5vmin, 3.5rem);
+}
+
+[data-has-hero] .hero h1 {
+	background-image: linear-gradient(150deg, var(--sl-color-white), var(--sl-color-gray-2));
+	-webkit-background-clip: text;
+	background-clip: text;
+	color: transparent;
+	font-weight: 700;
+	letter-spacing: -0.03em;
+}
+
+[data-has-hero] .hero .tagline {
+	color: var(--sl-color-gray-2);
+	max-width: 34ch;
+}
+
+[data-has-hero] .hero-html {
+	width: min(100%, 21rem);
+	margin-inline: auto;
+	filter: drop-shadow(0 0 3rem var(--core-mark-glow));
+}
+
+[data-has-hero] .core-mark {
+	width: 100%;
+	height: auto;
+	animation: core-float 7s ease-in-out infinite alternate;
+}
+
+@keyframes core-float {
+	from {
+		transform: translateY(-0.4rem) rotate(-1.5deg);
+	}
+	to {
+		transform: translateY(0.4rem) rotate(1.5deg);
+	}
+}
+
+[data-has-hero] .hero .actions .sl-link-button.primary {
+	background: linear-gradient(135deg, var(--core-cta-from), var(--core-cta-to));
+	border-color: transparent;
+	box-shadow: 0 0.75rem 1.75rem -0.75rem var(--core-cta-glow);
+	transition:
+		transform 0.18s ease,
+		box-shadow 0.18s ease;
+}
+
+[data-has-hero] .hero .actions .sl-link-button.primary:hover {
+	transform: translateY(-2px);
+	box-shadow: 0 1rem 2.25rem -0.75rem var(--core-cta-glow);
+}
+
+[data-has-hero] .hero .actions .sl-link-button.minimal {
+	color: var(--sl-color-gray-2);
+	transition: color 0.18s ease;
+}
+
+[data-has-hero] .hero .actions .sl-link-button.minimal:hover {
+	color: var(--sl-color-text-accent);
+}
+
+/* Section cards --------------------------------------------------------- */
+
+[data-has-hero] .core-sections {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+	gap: 1rem;
+}
+
+[data-has-hero] .core-section {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	gap: 0.7rem;
+	overflow: hidden;
+	padding: 1.4rem;
+	border: 1px solid var(--core-card-border);
+	border-radius: 0.75rem;
+	background: var(--core-card-bg);
+	text-decoration: none;
+	transition:
+		transform 0.18s ease,
+		border-color 0.18s ease,
+		background 0.18s ease,
+		box-shadow 0.18s ease;
+}
+
+/* A gradient hairline along the top edge, revealed on hover. */
+[data-has-hero] .core-section::after {
+	content: '';
+	position: absolute;
+	inset: 0 0 auto 0;
+	height: 2px;
+	opacity: 0;
+	background: linear-gradient(90deg, var(--sl-color-text-accent), transparent 70%);
+	transition: opacity 0.18s ease;
+}
+
+[data-has-hero] .core-section:hover {
+	transform: translateY(-3px);
+	border-color: var(--core-card-border-hover);
+	background: var(--core-card-bg-hover);
+	box-shadow: var(--core-card-shadow);
+}
+
+[data-has-hero] .core-section:hover::after {
+	opacity: 1;
+}
+
+[data-has-hero] .core-section:focus-visible {
+	outline: 2px solid var(--sl-color-text-accent);
+	outline-offset: 3px;
+}
+
+[data-has-hero] .core-section-icon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 2.25rem;
+	height: 2.25rem;
+	border: 1px solid var(--core-chip-border);
+	border-radius: 0.55rem;
+	background: var(--core-chip-bg);
+	color: var(--sl-color-text-accent);
+}
+
+[data-has-hero] .core-section-title {
+	color: var(--sl-color-white);
+	font-size: var(--sl-text-lg);
+	font-weight: 600;
+	line-height: var(--sl-line-height-headings);
+}
+
+[data-has-hero] .core-section-body {
+	flex: 1;
+	color: var(--sl-color-gray-3);
+	font-size: var(--sl-text-sm);
+	line-height: 1.6;
+}
+
+[data-has-hero] .core-section-meta {
+	color: var(--sl-color-gray-3);
+	font-family: var(--__sl-font-mono);
+	font-size: var(--sl-text-2xs);
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+}
+
+[data-has-hero] .core-section:hover .core-section-meta {
+	color: var(--sl-color-text-accent);
+}
+
+/* Section headings ------------------------------------------------------ */
+
+/*
+ * The rule goes on the wrapper, not the h2: Starlight makes headings
+ * `display: inline` so the anchor link can sit beside the text, which would
+ * shrink a border on the h2 down to the width of the words.
+ */
+[data-has-hero] .sl-markdown-content .sl-heading-wrapper.level-h2 {
+	margin-top: 3.5rem;
+	padding-bottom: 0.7rem;
+	border-bottom: 1px solid var(--sl-color-hairline-light);
+	font-size: var(--sl-text-sm);
+}
+
+[data-has-hero] .sl-markdown-content h2 {
+	color: var(--sl-color-gray-3);
+	font-family: var(--__sl-font-mono);
+	font-size: var(--sl-text-sm);
+	font-weight: 600;
+	letter-spacing: 0.16em;
+	text-transform: uppercase;
+}
+
+/* Link cards ------------------------------------------------------------ */
+
+[data-has-hero] .sl-link-card {
+	border-color: var(--core-card-border);
+	border-radius: 0.75rem;
+	background: var(--core-card-bg);
+	padding: 1.15rem;
+	transition:
+		transform 0.18s ease,
+		border-color 0.18s ease,
+		background 0.18s ease,
+		box-shadow 0.18s ease;
+}
+
+[data-has-hero] .sl-link-card:hover {
+	transform: translateY(-3px);
+	border-color: var(--core-card-border-hover);
+	background: var(--core-card-bg-hover);
+	box-shadow: var(--core-card-shadow);
+}
+
+[data-has-hero] .sl-link-card .icon {
+	transition:
+		transform 0.18s ease,
+		color 0.18s ease;
+}
+
+[data-has-hero] .sl-link-card:hover .icon {
+	transform: translateX(3px);
+	color: var(--sl-color-text-accent);
+}
+
+/* Footer note ----------------------------------------------------------- */
+
+[data-has-hero] .core-note {
+	display: flex;
+	align-items: center;
+	gap: 0.7rem;
+	margin-top: 3rem;
+	padding: 0.9rem 1.1rem;
+	border: 1px dashed var(--sl-color-hairline-light);
+	border-radius: 0.75rem;
+	color: var(--sl-color-gray-3);
+	font-size: var(--sl-text-sm);
+}
+
+[data-has-hero] .core-note svg {
+	flex-shrink: 0;
+	color: var(--sl-color-text-accent);
+}
+
+[data-has-hero] .core-note code {
+	border-radius: 0.25rem;
+	background: var(--sl-color-bg-inline-code);
+	padding: 0.1rem 0.35rem;
+	font-family: var(--__sl-font-mono);
+	font-size: var(--sl-text-xs);
+}
+
+/* ----------------------------------------------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+	[data-has-hero] .core-mark {
+		animation: none;
+	}
+
+	[data-has-hero] .core-section,
+	[data-has-hero] .sl-link-card,
+	[data-has-hero] .sl-link-card .icon,
+	[data-has-hero] .hero .actions .sl-link-button.primary {
+		transition: none;
+	}
+
+	[data-has-hero] .core-section:hover,
+	[data-has-hero] .sl-link-card:hover,
+	[data-has-hero] .sl-link-card:hover .icon,
+	[data-has-hero] .hero .actions .sl-link-button.primary:hover {
+		transform: none;
+	}
+}

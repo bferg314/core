@@ -60,9 +60,30 @@ Astro does **not** do this on its own for content collections, so don't remove
 the plugin. Never hand-write site-absolute paths like `/howto/ssh-keys/` in
 prose — they 404 under the base path.
 
-The exception is `src/content/docs/index.mdx`, where `<LinkCard>` and hero
-`actions` take raw hrefs that nothing rewrites. Those must include the base:
-`/core/howto/ssh-keys/`.
+The exception is `src/content/docs/index.mdx`, where `<LinkCard>`, hero `actions`,
+and the section cards take raw hrefs that nothing rewrites. Those must include the
+base: `/core/howto/ssh-keys/`.
+
+## Styling
+
+Two stylesheets, both registered under `customCss` in `astro.config.mjs`:
+
+| File | Scope |
+| --- | --- |
+| `src/styles/theme.css` | Site-wide. Overrides Starlight's colour tokens — teal accent, slate gray ramp — for both themes. Colours only. |
+| `src/styles/landing.css` | The landing page only. Every rule is prefixed `[data-has-hero]`. |
+
+`[data-has-hero]` is an attribute Starlight puts on `<html>` for any page with a
+`hero` in its frontmatter, which today is only `index.mdx`. Keep landing rules
+behind it so doc pages stay stock — **don't** style bare `.sl-link-card` or `h2`.
+
+Two gotchas when overriding Starlight:
+
+- Starlight's own CSS lives in `@layer starlight.*`. Unlayered rules beat any
+  layer regardless of specificity, so overrides never need `!important`.
+- Headings are `display: inline` inside a `.sl-heading-wrapper` div so the anchor
+  link can sit beside the text. Borders and backgrounds go on the wrapper; a
+  border on the `h2` shrinks to the width of the words.
 
 ## Verifying
 

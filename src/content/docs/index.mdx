@@ -3,7 +3,21 @@ title: Core
 description: A personal knowledge base — technical how-tos, machine setup runbooks, and things worth thinking about.
 template: splash
 hero:
-  tagline: Everything I don't want to look up twice.
+  tagline: Everything I don't want to look up twice. Runbooks, how-tos, cheatsheets, and a little philosophy.
+  image:
+    html: |
+      <svg class="core-mark" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <defs>
+          <linearGradient id="core-mark-fill" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="var(--core-mark-from)" />
+            <stop offset="1" stop-color="var(--core-mark-to)" />
+          </linearGradient>
+        </defs>
+        <g fill="url(#core-mark-fill)">
+          <path fill-rule="evenodd" clip-rule="evenodd" d="M81 36 64 0 47 36l-1 2-9-10a6 6 0 0 0-9 9l10 10h-2L0 64l36 17h2L28 91a6 6 0 1 0 9 9l9-10 1 2 17 36 17-36v-2l9 10a6 6 0 1 0 9-9l-9-9 2-1 36-17-36-17-2-1 9-9a6 6 0 1 0-9-9l-9 10v-2Zm-17 2-2 5c-4 8-11 15-19 19l-5 2 5 2c8 4 15 11 19 19l2 5 2-5c4-8 11-15 19-19l5-2-5-2c-8-4-15-11-19-19l-2-5Z" />
+          <path d="M118 19a6 6 0 0 0-9-9l-3 3a6 6 0 1 0 9 9l3-3Zm-96 4c-2 2-6 2-9 0l-3-3a6 6 0 1 1 9-9l3 3c3 2 3 6 0 9Zm0 82c-2-2-6-2-9 0l-3 3a6 6 0 1 0 9 9l3-3c3-2 3-6 0-9Zm96 4a6 6 0 0 1-9 9l-3-3a6 6 0 1 1 9-9l3 3Z" />
+        </g>
+      </svg>
   actions:
     - text: Set up a new machine
       link: /core/setup/windows/
@@ -14,47 +28,87 @@ hero:
       variant: minimal
 ---
 
-import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
+import { CardGrid, Icon, LinkCard } from '@astrojs/starlight/components';
 
-<CardGrid>
-	<Card title="Machine Setup" icon="laptop">
-		Start-to-finish runbooks for a fresh Windows or Linux box. Install lists,
-		dotfiles, shell config, the works.
-	</Card>
-	<Card title="How-To" icon="puzzle">
-		Step-by-step guides for the things that never quite stick — SSH keys, agent
-		config, remote access.
-	</Card>
-	<Card title="Cheatsheets" icon="list-format">
-		Dense command references to scan and copy, not read start to finish.
-	</Card>
-	<Card title="Philosophy" icon="comment-alt">
-		The non-technical half. Ideas, principles, and notes worth keeping.
-	</Card>
-</CardGrid>
+{/*
+	Page counts are read from the content directory at build time so the section
+	cards below can't drift out of date as pages are added. Section overview pages
+	(`index.md`) don't count as content.
+*/}
+export const pages = Object.keys(import.meta.glob('./**/*.{md,mdx}'));
+export const count = (dir, noun) => {
+	const n = pages.filter((p) => p.startsWith(`./${dir}/`) && !/\/index\.mdx?$/.test(p)).length;
+	return `${n} ${noun}${n === 1 ? '' : 's'}`;
+};
+
+<div class="core-sections not-content">
+	<a class="core-section" href="/core/setup/windows/">
+		<span class="core-section-icon"><Icon name="laptop" size="1.15rem" /></span>
+		<span class="core-section-title">Machine Setup</span>
+		<span class="core-section-body">
+			Start-to-finish runbooks for a fresh box. Install lists, shell config,
+			hardening, the works.
+		</span>
+		<span class="core-section-meta">{count('setup', 'runbook')}</span>
+	</a>
+	<a class="core-section" href="/core/howto/ssh-keys/">
+		<span class="core-section-icon"><Icon name="puzzle" size="1.15rem" /></span>
+		<span class="core-section-title">How-To</span>
+		<span class="core-section-body">
+			One task, start to finish, for the things that never quite stick — keys,
+			shares, certificates, containers.
+		</span>
+		<span class="core-section-meta">{count('howto', 'guide')}</span>
+	</a>
+	<a class="core-section" href="/core/cheatsheets/git/">
+		<span class="core-section-icon"><Icon name="list-format" size="1.15rem" /></span>
+		<span class="core-section-title">Cheatsheets</span>
+		<span class="core-section-body">
+			Dense command references, written to be scanned and copied rather than read
+			start to finish.
+		</span>
+		<span class="core-section-meta">{count('cheatsheets', 'sheet')}</span>
+	</a>
+	<a class="core-section" href="/core/philosophy/">
+		<span class="core-section-icon"><Icon name="comment-alt" size="1.15rem" /></span>
+		<span class="core-section-title">Philosophy</span>
+		<span class="core-section-body">
+			The non-technical half. Ideas, principles, and the reasoning behind how any
+			of this gets built.
+		</span>
+		<span class="core-section-meta">{count('philosophy', 'essay')}</span>
+	</a>
+</div>
 
 ## Jump in
 
-<LinkCard
-	title="SSH keys, start to finish"
-	description="Generate a key, load an agent on Windows and Linux, push it to GitHub and to a server."
-	href="/core/howto/ssh-keys/"
-/>
+<CardGrid>
+	<LinkCard
+		title="SSH keys, start to finish"
+		description="Generate a key, load an agent on Windows and Linux, push it to GitHub and to a server."
+		href="/core/howto/ssh-keys/"
+	/>
+	<LinkCard
+		title="New Windows machine"
+		description="A winget-driven setup for a fresh Windows install."
+		href="/core/setup/windows/"
+	/>
+	<LinkCard
+		title="New Linux machine"
+		description="Users, sudo, SSH hardening, firewall, and the essentials."
+		href="/core/setup/linux/"
+	/>
+	<LinkCard
+		title="Adding knowledge"
+		description="The conventions for adding a page — read this before you (or an agent) write one."
+		href="/core/meta/adding-knowledge/"
+	/>
+</CardGrid>
 
-<LinkCard
-	title="New Windows machine"
-	description="A winget-driven setup for a fresh Windows install."
-	href="/core/setup/windows/"
-/>
-
-<LinkCard
-	title="New Linux machine"
-	description="Users, sudo, SSH hardening, firewall, and the essentials."
-	href="/core/setup/linux/"
-/>
-
-<LinkCard
-	title="Adding knowledge"
-	description="The conventions for adding a page — read this before you (or an agent) write one."
-	href="/core/meta/adding-knowledge/"
-/>
+<div class="core-note not-content">
+	<Icon name="information" size="1.1rem" />
+	<span>
+		Built with Astro Starlight and published from{' '}
+		<a href="https://github.com/bferg314/core">bferg314/core</a> on every push to <code>main</code>.
+	</span>
+</div>
