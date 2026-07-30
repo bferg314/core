@@ -9,6 +9,23 @@ import { Tabs, TabItem, Steps } from '@astrojs/starlight/components';
 
 Everything about SSH keys, in the order you actually need it.
 
+A key is two files. The **public** key is a padlock: hand out as many copies as you
+like, and a server that holds one can verify you without ever learning your secret.
+The **private** key is the only thing that opens those padlocks, and it never leaves
+the machine it was made on. Nothing you send over the wire can be replayed to
+impersonate you, which is why this replaces passwords rather than supplementing
+them.
+
+What ends up in `~/.ssh`:
+
+| File | Is | Share it? |
+| --- | --- | --- |
+| `id_ed25519` | Your private key | **Never** |
+| `id_ed25519.pub` | Your public key | Freely |
+| `authorized_keys` | Public keys allowed to log in **to this machine** | It's a guest list |
+| `known_hosts` | Fingerprints of servers you've connected to before | Local bookkeeping |
+| `config` | Per-host shortcuts and options | Freely — it holds no secrets |
+
 ## Generate a key
 
 One key per machine, named after the machine. `ed25519` is the right default —
@@ -302,6 +319,44 @@ ssh -o PreferredAuthentications=publickey homelab
 Once that succeeds, harden the server as described in
 [the Linux setup runbook](../setup/linux.mdx#lock-down-ssh).
 
+## Host keys and `known_hosts`
+
+Authentication runs both ways. The server checks your key; you check the server's.
+The first time you connect, there's nothing to compare against:
+
+```text
+The authenticity of host '10.0.0.14 (10.0.0.14)' can't be established.
+ED25519 key fingerprint is SHA256:5xK9pQ2vN8mR4tY7wZ1aB3cD6eF0gH2iJ4kL8nM5oP.
+Are you sure you want to continue connecting (yes/no/[fingerprint])?
+```
+
+Answering `yes` records that fingerprint in `~/.ssh/known_hosts`. Every later
+connection compares the server's key against the stored one, and a mismatch stops
+the connection cold.
+
+Verify the fingerprint out of band the first time it actually matters — on the
+server's own console, run:
+
+```bash
+ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub
+```
+
+When a host key legitimately changes, remove the stale entry:
+
+```bash
+ssh-keygen -R 10.0.0.14
+```
+
+:::danger
+`REMOTE HOST IDENTIFICATION HAS CHANGED` has exactly two causes: the server was
+rebuilt, reinstalled, or had SSH reinstalled — or someone is sitting between you
+and it. Only clear the entry when you can explain the change. Deleting it to make
+the warning go away is precisely the behaviour the check exists to catch.
+:::
+
+One entry per name, so a host reachable as both `10.0.0.14` and `homelab` is stored
+twice. `ssh-keygen -R` takes whichever name you connect by.
+
 ## Troubleshooting
 
 When a connection fails, the verbose output almost always names the reason:
@@ -330,17 +385,8 @@ Get a key's fingerprint to compare against what GitHub or the server lists:
 ssh-keygen -lf ~/.ssh/id_ed25519.pub
 ```
 
-Host key changed after a rebuild, and SSH is refusing to connect:
-
-```bash
-ssh-keygen -R 10.0.0.14
-```
-
-:::danger
-Only remove a host key when you know why it changed — a rebuild, a new SSH
-install, a fresh VM. An unexplained change is what a machine-in-the-middle
-attack looks like.
-:::
+Host key changed after a rebuild — see [`known_hosts`](#host-keys-and-known_hosts)
+above.
 
 ## Recover the public key from a private key
 

@@ -1,0 +1,327 @@
+---
+title: Format a Disk
+description: Partition, format, and permanently mount a new disk on Linux — choosing a filesystem, writing fstab, and not wiping the wrong device.
+sidebar:
+  order: 3
+---
+
+import { Tabs, TabItem, Steps } from '@astrojs/starlight/components';
+
+Adding a disk is four steps: identify it, partition it, put a filesystem on it,
+and mount it at boot. The dangerous part is step one.
+
+:::danger
+Every command past "find the disk" destroys data on the device you name, with no
+confirmation and no undo. `/dev/sdb` and `/dev/sda` are one keystroke apart, and
+device letters are assigned in **detection order** — they can change between
+boots when you add hardware. Run `lsblk` immediately before each destructive
+command and confirm the size and mountpoint match the disk you mean.
+:::
+
+## Find the disk
+
+```bash
+lsblk -o NAME,SIZE,TYPE,FSTYPE,LABEL,MOUNTPOINTS
+```
+
+```text
+NAME          SIZE TYPE FSTYPE LABEL MOUNTPOINTS
+sda           477G disk
+└─sda1        477G part ext4         /
+sdb           1.8T disk
+nvme0n1       932G disk
+├─nvme0n1p1     1G part vfat         /boot/efi
+└─nvme0n1p2   931G part ext4         /home
+```
+
+The new disk is the one with **no partitions, no filesystem, and no mountpoint** —
+`sdb` above. If two disks are the same size, tell them apart by serial:
+
+```bash
+lsblk -o NAME,SIZE,SERIAL,MODEL
+```
+
+Naming follows the interface:
+
+| Pattern | Is |
+| --- | --- |
+| `sda`, `sdb` | SATA, SAS, or USB. Partitions are `sda1`, `sda2` |
+| `nvme0n1` | NVMe. Partitions get a `p`: `nvme0n1p1` |
+| `mmcblk0` | SD card or eMMC. Partitions also get a `p` |
+| `vda` | virtio disk — a VM |
+
+Just plugged it in and it isn't listed?
+
+```bash
+sudo dmesg | tail -20
+```
+
+That names the device as the kernel saw it, which also tells you if the disk is
+failing to enumerate rather than simply missing.
+
+## Pick a filesystem
+
+| Filesystem | Use it for | Why not |
+| --- | --- | --- |
+| **ext4** | Anything Linux-only where you have no specific reason to choose otherwise | No snapshots, no built-in integrity checking |
+| **XFS** | Large files, many parallel writers, media libraries | Cannot be shrunk, only grown |
+| **Btrfs** | Snapshots, checksums, single-disk or mirrored redundancy | More moving parts; RAID 5/6 still isn't trustworthy |
+| **ZFS** | A storage box where data integrity is the whole point | Not in the kernel — needs DKMS, and the pool is managed with `zpool`, not `mkfs` |
+| **exFAT** | A USB drive that must work on Windows and macOS too | No journal, no permissions, corrupts if yanked mid-write |
+| **NTFS** | A disk shared with a Windows dual-boot | Permissions don't map to Unix ones |
+| **FAT32** | Firmware updates, EFI partitions, ancient devices | 4 GB maximum file size |
+
+Short version: **ext4** unless you want snapshots (**Btrfs**) or you're building a
+NAS (**ZFS**). For an external drive that leaves the house, **exFAT**.
+
+## Partition
+
+`cfdisk` is a menu rather than a set of single-letter commands, which makes it the
+one to reach for:
+
+```bash
+sudo cfdisk /dev/sdb
+```
+
+<Steps>
+
+1. Choose **gpt** when it asks for a label type. MBR only matters for BIOS booting
+   or disks that must be read by something very old.
+
+2. Select the free space, then **[New]**, and accept the full size for a
+   single-partition disk.
+
+3. Leave the type as `Linux filesystem`.
+
+4. **[Write]**, then type `yes` in full. Nothing is committed until this point —
+   quitting before it is completely safe.
+
+5. **[Quit]**.
+
+</Steps>
+
+Confirm the partition exists before formatting it:
+
+```bash
+lsblk /dev/sdb
+```
+
+If the disk was previously used by ZFS, RAID, or LVM, stale signatures make
+`mkfs` refuse or, worse, make the disk get auto-claimed on next boot. Clear them:
+
+```bash
+sudo wipefs -a /dev/sdb
+```
+
+`fdisk` (MBR) and `gdisk` (GPT) do the same job with single-letter commands —
+`n` new, `d` delete, `t` type, `p` print, `w` write, `q` quit without saving. They
+script better; `cfdisk` is easier to get right by hand.
+
+## Create the filesystem
+
+Note the **partition** number — `/dev/sdb1`, not `/dev/sdb`. Formatting the whole
+device works but throws away the partition table you just made.
+
+<Tabs syncKey="fs">
+	<TabItem label="ext4">
+		```bash
+		sudo mkfs.ext4 -L media /dev/sdb1
+		```
+	</TabItem>
+	<TabItem label="XFS">
+		```bash
+		sudo mkfs.xfs -L media /dev/sdb1
+		```
+	</TabItem>
+	<TabItem label="Btrfs">
+		```bash
+		sudo mkfs.btrfs -L media /dev/sdb1
+		```
+
+		Compression is a mount option, not a format option — see the fstab table
+		below.
+	</TabItem>
+	<TabItem label="exFAT">
+		```bash
+		sudo apt install -y exfatprogs
+		```
+
+		```bash
+		sudo mkfs.exfat -n media /dev/sdb1
+		```
+
+		The older `exfat-utils` package is superseded by `exfatprogs` on current
+		Debian, Ubuntu, Fedora, and Arch.
+	</TabItem>
+	<TabItem label="NTFS">
+		```bash
+		sudo apt install -y ntfs-3g
+		```
+
+		```bash
+		sudo mkfs.ntfs -Q -L media /dev/sdb1
+		```
+
+		`-Q` skips the full surface scan. Without it, formatting a 2 TB disk takes
+		hours instead of seconds.
+	</TabItem>
+</Tabs>
+
+The `-L` (or `-n`) label is worth setting every time — it's how you identify the
+disk later in `lsblk` without decoding UUIDs.
+
+## Mount it once
+
+```bash
+sudo mkdir -p /mnt/media
+sudo mount /dev/sdb1 /mnt/media
+```
+
+```bash
+findmnt /mnt/media
+```
+
+That confirms what's mounted where, with which options. Unmount with
+`sudo umount /mnt/media`.
+
+## Mount it at boot
+
+Get the UUID:
+
+```bash
+sudo blkid /dev/sdb1
+```
+
+```text
+/dev/sdb1: LABEL="media" UUID="3f2a1c9d-8b47-4e6f-a1d2-5c8e9f0b3a71" TYPE="ext4" PARTUUID="a1b2c3d4-01"
+```
+
+Add a line to `/etc/fstab` using that UUID:
+
+```text title="/etc/fstab"
+UUID=3f2a1c9d-8b47-4e6f-a1d2-5c8e9f0b3a71  /mnt/media  ext4  defaults,noatime,nofail  0  2
+```
+
+:::caution
+Use `UUID=`, never `/dev/sdb1`. Device letters are assigned in detection order, so
+adding a disk later can silently point this entry at the wrong drive. `nofail`
+matters just as much: without it, a missing or failed disk drops the boot into an
+emergency shell instead of coming up degraded.
+:::
+
+The two trailing numbers are `dump` (leave at `0`) and `fsck` order — `1` for the
+root filesystem, `2` for everything else, `0` to skip.
+
+Test the entry **before** rebooting, which is the whole point of doing it in this
+order:
+
+```bash
+sudo mount -a
+```
+
+No output means every line parsed and mounted. An error here is an error you'd
+otherwise have discovered at next boot with no shell to fix it from. On systemd,
+also pick up the change immediately:
+
+```bash
+sudo systemctl daemon-reload
+```
+
+### Options per filesystem
+
+| Filesystem | Reasonable fstab options |
+| --- | --- |
+| ext4 | `defaults,noatime,nofail` |
+| ext4 (root) | `defaults,noatime,errors=remount-ro` |
+| XFS | `defaults,noatime,nofail` |
+| Btrfs | `defaults,noatime,compress=zstd:3,nofail` |
+| Btrfs subvolume | `defaults,noatime,subvol=@home,compress=zstd:3` |
+| exFAT | `defaults,uid=1000,gid=1000,umask=022,nofail` |
+| NTFS | `defaults,uid=1000,gid=1000,dmask=022,fmask=133,windows_names,nofail` |
+| FAT32 | `defaults,uid=1000,gid=1000,umask=022,iocharset=utf8,nofail` |
+
+`noatime` stops a read from causing a write, which is free performance on almost
+any workload. `compress=zstd:3` on Btrfs is close to free on modern CPUs and often
+a net speedup on compressible data.
+
+The `uid`/`gid`/`umask` options are only needed on filesystems with **no Unix
+permissions** — exFAT, NTFS, FAT32. Everything is owned by whoever those options
+say, because the disk itself stores no ownership. On ext4, XFS, and Btrfs, setting
+them does nothing; use `chown` instead.
+
+:::note
+Avoid `data=writeback` and `barrier=0` on ext4. They appear in a lot of
+"performance tuning" lists and they trade crash-safety for a few percent — on an
+unclean shutdown you can get files containing the contents of previously deleted
+blocks.
+:::
+
+## Give yourself write access
+
+A fresh filesystem is owned by root, so a normal user can't write to it:
+
+```bash
+sudo chown -R bryan:bryan /mnt/media
+```
+
+For a disk several accounts share, use a group instead:
+
+```bash
+sudo chgrp -R media /mnt/media
+sudo chmod -R 2775 /mnt/media
+```
+
+The leading `2` sets the setgid bit, so files created inside inherit the `media`
+group rather than the creator's primary group. Without it, shared directories
+gradually break as each user's files become unreadable to the others.
+
+## Checking and repairing
+
+Never run a check on a mounted filesystem — unmount first.
+
+| Filesystem | Check | Repair |
+| --- | --- | --- |
+| ext4 | `sudo fsck.ext4 -n /dev/sdb1` | `sudo fsck.ext4 -y /dev/sdb1` |
+| XFS | `sudo xfs_repair -n /dev/sdb1` | `sudo xfs_repair /dev/sdb1` |
+| Btrfs | `sudo btrfs check /dev/sdb1` | `sudo btrfs check --repair /dev/sdb1` |
+| exFAT / NTFS | `sudo fsck.exfat /dev/sdb1` / `sudo ntfsfix /dev/sdb1` | same |
+
+`-n` answers "no" to every prompt, so it reports problems without touching
+anything. Always start there.
+
+:::caution
+`btrfs check --repair` is documented by its own authors as a last resort that can
+make things worse. Try mounting with `-o ro,rescue=all` and copying the data off
+first.
+:::
+
+Check the hardware rather than the filesystem when errors keep coming back:
+
+```bash
+sudo smartctl -a /dev/sdb
+```
+
+`Reallocated_Sector_Ct` or `Current_Pending_Sector` climbing above zero means the
+disk is failing, and no amount of `fsck` will fix that.
+
+## Troubleshooting
+
+**`mount: unknown filesystem type`** — the driver isn't installed (`exfatprogs`,
+`ntfs-3g`), or you're naming the whole disk instead of a partition.
+
+**`mount: /dev/sdb1 already mounted or mount point busy`** — something already has
+it. `findmnt /dev/sdb1` says what, and `sudo lsof +D /mnt/media` says which
+process is holding it.
+
+**`wrong fs type, bad option, bad superblock`** — usually a wrong filesystem type
+in `/etc/fstab`. Confirm with `sudo blkid`.
+
+**Disk shows up but `mkfs` says "device is busy"** — it's mounted, or claimed by
+LVM, RAID, or ZFS. `sudo wipefs -n /dev/sdb` shows what signatures are present.
+
+**Free space vanished on a Btrfs disk that looks half empty** — `df` doesn't
+understand Btrfs. Use `sudo btrfs filesystem usage /mnt/media`.
+
+Once the disk is mounted, the rest of the machine setup is in
+[the Linux runbook](../setup/linux.mdx). To share it on the network, see
+[Samba](samba-share.mdx).

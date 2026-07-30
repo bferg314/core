@@ -1,0 +1,275 @@
+---
+title: Run a Local CA
+description: Issue trusted HTTPS certificates for homelab services — with mkcert for speed, or openssl when you need to script it.
+sidebar:
+  order: 7
+---
+
+import { Tabs, TabItem, Steps } from '@astrojs/starlight/components';
+
+Let's Encrypt can't validate a hostname that only exists on your LAN without a
+DNS-01 challenge and a real domain. Running your own certificate authority is the
+shorter path: create one CA, trust it once per device, and issue certificates for
+anything you like.
+
+The tradeoff is real, so be clear about it: a CA your machines trust can vouch for
+**any** hostname on the internet. Its private key is as sensitive as a password
+manager's.
+
+:::caution
+Don't use a `.local` hostname. It's reserved for mDNS/Bonjour, and macOS, iOS, and
+systemd-resolved resolve it by multicast — your DNS entry will be ignored
+unpredictably. Use `.lan`, `.internal`, `.home.arpa`, or a subdomain of a domain
+you actually own.
+:::
+
+Two things every modern client enforces, and both break certificates made from
+older guides:
+
+- **The Common Name is ignored.** Hostnames must appear in the Subject Alternative
+  Name extension. A cert with only `CN=jellyfin.homelab.lan` fails in every current
+  browser.
+- **Leaf certificates over 398 days are rejected** by Chrome and Safari regardless
+  of who signed them. Issue server certs for a year and script the renewal. The CA
+  itself can be good for ten.
+
+## The fast way: mkcert
+
+`mkcert` generates a local CA, installs it into every trust store it can find, and
+issues certificates with correct SANs by default.
+
+<Tabs syncKey="os">
+	<TabItem label="Windows">
+		```powershell
+		winget install --id FiloSottile.mkcert -e
+		```
+	</TabItem>
+	<TabItem label="Linux">
+		```bash
+		sudo apt install -y mkcert libnss3-tools
+		```
+
+		`libnss3-tools` is what lets it install into Firefox and Chrome's own stores,
+		not just the system one.
+	</TabItem>
+	<TabItem label="macOS">
+		```bash
+		brew install mkcert nss
+		```
+	</TabItem>
+</Tabs>
+
+Create and trust the CA — once, on the machine you'll issue from:
+
+```bash
+mkcert -install
+```
+
+Issue a certificate covering a hostname, a wildcard, and the IP:
+
+```bash
+mkcert jellyfin.homelab.lan "*.homelab.lan" 10.0.0.14 localhost
+```
+
+That writes `jellyfin.homelab.lan+3.pem` (certificate) and
+`jellyfin.homelab.lan+3-key.pem` (key) in the current directory. Point your server
+at them and you're done — skip to [Trust the CA everywhere else](#trust-the-ca-everywhere-else).
+
+Find the CA files, which you'll need to copy to your other devices:
+
+```bash
+mkcert -CAROOT
+```
+
+`rootCA.pem` in that directory is the certificate to distribute. `rootCA-key.pem`
+is the private key — it never leaves the machine.
+
+## The explicit way: openssl
+
+Use this when the issuing machine is a headless server, when you want the process
+in a script, or when you want to know exactly what's in the certificate.
+
+<Steps>
+
+1. Create the CA key. `-aes256` prompts for a passphrase, which is worth the
+   inconvenience for a key this powerful:
+
+   ```bash
+   openssl genrsa -aes256 -out rootCA.key 4096
+   ```
+
+2. Self-sign the CA certificate, valid for ten years:
+
+   ```bash
+   openssl req -x509 -new -nodes -key rootCA.key -sha256 -days 3650 -out rootCA.crt -subj "/CN=Ferguson Homelab CA/O=Ferguson Homelab"
+   ```
+
+3. Create the server key — no passphrase, or the web server can't start
+   unattended:
+
+   ```bash
+   openssl genrsa -out jellyfin.key 2048
+   ```
+
+4. Write a config file naming every hostname and IP the certificate should cover:
+
+   ```ini title="jellyfin.cnf"
+   [req]
+   distinguished_name = dn
+   req_extensions     = ext
+   prompt             = no
+
+   [dn]
+   CN = jellyfin.homelab.lan
+
+   [ext]
+   subjectAltName   = @san
+   keyUsage         = critical, digitalSignature, keyEncipherment
+   extendedKeyUsage = serverAuth
+
+   [san]
+   DNS.1 = jellyfin.homelab.lan
+   DNS.2 = *.homelab.lan
+   IP.1  = 10.0.0.14
+   ```
+
+5. Generate the signing request:
+
+   ```bash
+   openssl req -new -key jellyfin.key -out jellyfin.csr -config jellyfin.cnf
+   ```
+
+6. Sign it, carrying the SAN extension across — this is the step everyone gets
+   wrong, because without `-extfile` the extensions in the CSR are silently
+   dropped:
+
+   ```bash
+   openssl x509 -req -in jellyfin.csr -CA rootCA.crt -CAkey rootCA.key -CAcreateserial -out jellyfin.crt -days 398 -sha256 -extfile jellyfin.cnf -extensions ext
+   ```
+
+7. Confirm the SANs are actually in the finished certificate:
+
+   ```bash
+   openssl x509 -in jellyfin.crt -noout -text | grep -A2 "Subject Alternative Name"
+   ```
+
+</Steps>
+
+Reissuing later only needs steps 5 and 6 — the CA and the server key stay put.
+
+## Trust the CA everywhere else
+
+Every device that will visit the service needs `rootCA.crt` (or mkcert's
+`rootCA.pem` — same file, different extension) in its trust store.
+
+<Tabs syncKey="os">
+	<TabItem label="Windows">
+		From an **Administrator** PowerShell:
+
+		```powershell
+		Import-Certificate -FilePath .\rootCA.crt -CertStoreLocation Cert:\LocalMachine\Root
+		```
+
+		Verify it landed:
+
+		```powershell
+		Get-ChildItem Cert:\LocalMachine\Root | Where-Object Subject -Match "Homelab"
+		```
+	</TabItem>
+	<TabItem label="Linux">
+		The file must have a `.crt` extension and be PEM-encoded, or
+		`update-ca-certificates` ignores it without complaining:
+
+		```bash
+		sudo cp rootCA.crt /usr/local/share/ca-certificates/homelab-ca.crt
+		sudo update-ca-certificates
+		```
+
+		On Fedora and RHEL:
+
+		```bash
+		sudo cp rootCA.crt /etc/pki/ca-trust/source/anchors/homelab-ca.crt
+		sudo update-ca-trust
+		```
+	</TabItem>
+	<TabItem label="macOS">
+		```bash
+		sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain rootCA.crt
+		```
+	</TabItem>
+</Tabs>
+
+:::note
+**Firefox ignores the system trust store entirely.** Import the CA at
+`about:preferences#privacy` → View Certificates → Authorities → Import, and check
+"Trust this CA to identify websites." Chrome and Edge use the system store on
+Windows and macOS but their own NSS store on Linux, which is what `libnss3-tools`
+is for.
+
+Android requires the CA under Settings → Security → Encryption & credentials →
+Install a certificate → CA certificate, and apps that use certificate pinning will
+still refuse it. iOS needs the profile installed **and** separately enabled under
+General → About → Certificate Trust Settings.
+:::
+
+## Use it
+
+```nginx title="/etc/nginx/conf.d/jellyfin.conf"
+server {
+    listen 443 ssl;
+    http2 on;
+    server_name jellyfin.homelab.lan;
+
+    ssl_certificate     /etc/ssl/homelab/jellyfin.crt;
+    ssl_certificate_key /etc/ssl/homelab/jellyfin.key;
+    ssl_protocols       TLSv1.2 TLSv1.3;
+
+    location / {
+        proxy_pass http://10.0.0.14:8096;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Proto https;
+    }
+}
+```
+
+The key must be readable only by root:
+
+```bash
+sudo chmod 600 /etc/ssl/homelab/jellyfin.key
+```
+
+Caddy is less work if you're starting fresh — point it at the same pair with
+`tls /etc/ssl/homelab/jellyfin.crt /etc/ssl/homelab/jellyfin.key` and it handles
+the rest.
+
+## Verify from a client
+
+```bash
+openssl s_client -connect jellyfin.homelab.lan:443 -servername jellyfin.homelab.lan </dev/null
+```
+
+`Verify return code: 0 (ok)` means the chain and hostname both check out. Common
+failures:
+
+- **`unable to get local issuer certificate`** — the CA isn't trusted on this
+  machine, or you installed it as the wrong file type.
+- **`self signed certificate`** — you're serving the CA certificate itself rather
+  than the certificate it signed.
+- **Certificate dates in the past** — check the clock. A machine whose time is
+  wrong rejects perfectly good certificates, and this looks like a certificate
+  problem for a surprisingly long time.
+
+## Keep the key safe
+
+```bash
+chmod 600 rootCA.key
+```
+
+Store it off the server that uses it — an encrypted archive in your password
+manager or on a USB key kept out of the machine. Anyone who takes that file can
+impersonate your bank to every device you've trusted the CA on.
+
+Note the expiry dates somewhere you'll see them. A one-year server certificate
+will expire, and the failure looks like the service breaking rather than a
+certificate lapsing. `openssl x509 -in jellyfin.crt -noout -enddate` tells you
+when.

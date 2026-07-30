@@ -1,0 +1,232 @@
+---
+title: Set Up Ranger
+description: Install the ranger file manager with icons and image previews, and the keybindings worth knowing.
+sidebar:
+  order: 5
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+
+A terminal file manager with vim keys and a three-column view: parent directory,
+current directory, preview. It's the fastest way to move around a filesystem over
+SSH, where a GUI file manager isn't an option.
+
+## Install
+
+The extra packages are all preview handlers — ranger works without them, it just
+shows nothing useful for archives, PDFs, and videos.
+
+<Tabs syncKey="distro">
+	<TabItem label="Debian/Ubuntu">
+		```bash
+		sudo apt install -y ranger atool highlight mediainfo poppler-utils ffmpegthumbnailer
+		```
+	</TabItem>
+	<TabItem label="Fedora">
+		```bash
+		sudo dnf install -y ranger atool highlight mediainfo poppler-utils ffmpegthumbnailer
+		```
+	</TabItem>
+	<TabItem label="Arch">
+		```bash
+		sudo pacman -S ranger atool highlight mediainfo poppler ffmpegthumbnailer
+		```
+	</TabItem>
+</Tabs>
+
+What each one buys you:
+
+| Package | Previews |
+| --- | --- |
+| `atool` | Archive contents — `.zip`, `.tar.gz`, `.7z` |
+| `highlight` | Syntax-highlighted source files |
+| `mediainfo` | Codec, duration, and bitrate for audio and video |
+| `poppler-utils` | PDF text (`pdftotext`) |
+| `ffmpegthumbnailer` | Video thumbnails, if image previews are on |
+
+## Configure
+
+Generate the config files:
+
+```bash
+ranger --copy-config=all
+```
+
+:::caution
+That writes a full copy of the **current** defaults to `~/.config/ranger/`. Ranger
+loads its built-in `rc.conf` first and yours second, so a full copy is mostly
+redundant — and it silently pins you to this version's defaults and duplicates
+every keybinding. Either keep only the lines you actually changed, or delete
+`~/.config/ranger/rc.conf` and write a short one by hand.
+:::
+
+A minimal config with just the settings worth changing:
+
+```bash title="~/.config/ranger/rc.conf"
+set preview_images true
+set preview_images_method ueberzug
+set show_hidden true
+set vcs_aware true            # show git status per file
+set draw_borders separators
+default_linemode devicons
+```
+
+`vcs_aware` is the underrated one — it marks modified and untracked files in place,
+so a directory's git state is visible while you browse it.
+
+### Icons
+
+```bash
+git clone https://github.com/alexanderjeurissen/ranger_devicons ~/.config/ranger/plugins/ranger_devicons
+```
+
+Icons need a patched font. Install one and set it as your terminal font, or every
+icon renders as a hollow box:
+
+<Tabs syncKey="distro">
+	<TabItem label="Debian/Ubuntu">
+		```bash
+		wget -P /tmp https://github.com/ryanoasis/nerd-fonts/releases/latest/download/FiraCode.zip
+		sudo unzip -o /tmp/FiraCode.zip -d /usr/local/share/fonts/FiraCode
+		fc-cache -fv
+		```
+	</TabItem>
+	<TabItem label="Fedora">
+		```bash
+		sudo dnf install -y fira-code-fonts
+		```
+	</TabItem>
+	<TabItem label="Arch">
+		```bash
+		sudo pacman -S ttf-firacode-nerd
+		```
+	</TabItem>
+</Tabs>
+
+### Image previews
+
+The method depends on your terminal, and getting this wrong is why previews
+usually don't work:
+
+| Terminal | `preview_images_method` |
+| --- | --- |
+| Kitty | `kitty` |
+| WezTerm, foot, or anything with Sixel | `sixel` |
+| iTerm2 | `iterm2` |
+| Windows Terminal, GNOME Terminal, xterm | `ueberzug` |
+
+`ueberzug` draws a real image over the terminal window, so it only works on X11 —
+not Wayland, and not through SSH. On Debian/Ubuntu the maintained package is
+`ueberzugpp`; the original `ueberzug` is unmaintained and gone from PyPI.
+
+Kitty and Sixel work over SSH, which makes them the better choice for a remote box.
+
+## Change directory on exit
+
+By default, quitting ranger leaves your shell wherever it started. This is the
+single most useful thing to configure — `r` browses, and quitting with `Q` drops
+you where you ended up:
+
+```bash title="~/.bashrc"
+ranger-cd() {
+    local tmp
+    tmp="$(mktemp)"
+    ranger --choosedir="$tmp" -- "${@:-$PWD}"
+    if chosen="$(cat -- "$tmp")" && [ -n "$chosen" ] && [ "$chosen" != "$PWD" ]; then
+        cd -- "$chosen" || return
+    fi
+    rm -f -- "$tmp"
+}
+alias r=ranger-cd
+```
+
+```bash
+source ~/.bashrc
+```
+
+## Keys
+
+Movement is vim's, one column at a time:
+
+| Key | Does |
+| --- | --- |
+| `h` `j` `k` `l` | Parent directory, down, up, enter directory / open file |
+| `gg` `G` | Top, bottom |
+| `H` `L` | Back, forward through history |
+| `gh` `/` `gr` | Go home, search, go to `/` |
+| `q` | Quit. `Q` quits all tabs |
+
+### Files
+
+| Key | Does |
+| --- | --- |
+| `yy` `dd` `pp` | Copy, cut, paste |
+| `po` `pl` | Paste overwriting, paste as symlink |
+| `dD` | Delete — prompts for confirmation |
+| `cw` | Rename, empty prompt |
+| `A` / `I` | Rename, cursor at the end / start of the name |
+| `:mkdir` `:touch` | Create a directory, a file |
+| `:bulkrename` | Rename every selected file in `$EDITOR` at once |
+
+`:bulkrename` is the reason to keep ranger around: select files, edit the list as
+text, save, and it applies the renames — with a preview of the shell script it's
+about to run.
+
+### Selecting
+
+| Key | Does |
+| --- | --- |
+| <kbd>Space</kbd> | Select this file, move down |
+| `v` | Invert the selection |
+| `V` | Visual mode — select while moving |
+| `uv` | Deselect everything |
+| `zh` | Toggle hidden files |
+
+Operations act on the selection if there is one, otherwise on the file under the
+cursor. This catches people out: a `dd` with three files selected cuts all three.
+
+### Tabs, sorting, bookmarks
+
+| Key | Does |
+| --- | --- |
+| `gn` / `gt` / `gT` | New tab, next, previous |
+| <kbd>Alt</kbd>+`1`–`9` | Jump to tab N |
+| `on` `os` `ot` `oc` | Sort by name, size, mtime, ctime |
+| `or` | Reverse the sort |
+| `m` + letter | Set a bookmark |
+| `'` + letter | Jump to it |
+| `um` + letter | Delete it |
+
+Bookmarks persist between sessions in `~/.local/share/ranger/bookmarks`, and `''`
+jumps to the previous directory.
+
+### Shell and archives
+
+| Key | Does |
+| --- | --- |
+| `S` | Open a shell in the current directory. `exit` returns to ranger |
+| `!` | Run one command — `!git status` |
+| `@` | Run a command with the selected files as arguments |
+| `:extract` | Unpack the selected archive here |
+| `:compress` | Archive the selection |
+| `zf` | Filter the view by a pattern, live |
+| `:flat 2` | Show two levels of subdirectories flattened into one list |
+
+`?` opens the full keybinding list, and `:` followed by <kbd>Tab</kbd> completes
+command names.
+
+## Troubleshooting
+
+**Icons are hollow boxes** — the font isn't patched or the terminal isn't using it.
+Check with `fc-list | grep -i nerd`.
+
+**No image previews** — wrong `preview_images_method` for the terminal, or
+`ueberzug` on Wayland or over SSH. `set preview_images false` and confirm text
+previews work first.
+
+**Slow entering a directory** — a preview handler is chewing on something large.
+Turn previews off with `zp` to confirm, then look at
+`~/.config/ranger/scope.sh`.
+
+**A keybinding does two things** — a full `rc.conf` copy is binding it on top of
+the default. Trim the file to just your changes.

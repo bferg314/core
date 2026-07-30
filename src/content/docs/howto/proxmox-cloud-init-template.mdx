@@ -1,0 +1,257 @@
+---
+title: Proxmox Cloud-Init Template
+description: Build a reusable Arch Linux VM template on Proxmox so every clone comes up with your SSH key, its own hostname, and a unique machine ID.
+sidebar:
+  order: 8
+---
+
+import { Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+
+Installing an OS from an ISO is a fifteen-minute job you should do exactly once.
+Build a template from a cloud image instead, and every clone after that boots in
+seconds with your key already in `authorized_keys`.
+
+Needs shell access to the Proxmox host, 20 GB free on a storage pool, and your
+public key to hand. About ten minutes end to end.
+
+## Get the cloud image
+
+On the Proxmox host:
+
+```bash
+cd /var/lib/vz/template/iso
+wget https://geo.mirror.pkgbuild.com/images/latest/Arch-Linux-x86_64-cloudimg.qcow2
+```
+
+```bash
+wget https://geo.mirror.pkgbuild.com/images/latest/Arch-Linux-x86_64-cloudimg.qcow2.SHA256
+sha256sum -c Arch-Linux-x86_64-cloudimg.qcow2.SHA256
+```
+
+`geo.mirror.pkgbuild.com` resolves to a nearby mirror. Use
+`archive.archlinux.org/images/` instead if you want a pinned dated version rather
+than whatever is current.
+
+The same process works for any distro's cloud image — Debian's are at
+`cloud.debian.org/images/cloud/`, Ubuntu's at `cloud-images.ubuntu.com`. Only the
+in-guest package commands change.
+
+## Create the VM
+
+`9000` and up is the usual convention for template IDs, which keeps them out of the
+way of real guests.
+
+```bash
+qm create 9000 --name arch-template --memory 2048 --cores 2 --net0 virtio,bridge=vmbr0 --ostype l26 --agent 1
+```
+
+`--agent 1` only enables agent *support* on the VM record. The agent itself still
+has to be installed inside the guest, below.
+
+## Attach the disk
+
+On Proxmox VE 8 and later, import and attach in one step:
+
+```bash
+qm set 9000 --scsihw virtio-scsi-pci --scsi0 local-lvm:0,import-from=/var/lib/vz/template/iso/Arch-Linux-x86_64-cloudimg.qcow2
+```
+
+<details>
+<summary>On Proxmox VE 7, or if that fails</summary>
+
+```bash
+qm importdisk 9000 /var/lib/vz/template/iso/Arch-Linux-x86_64-cloudimg.qcow2 local-lvm
+```
+
+```bash
+qm set 9000 --scsihw virtio-scsi-pci --scsi0 local-lvm:vm-9000-disk-0
+```
+
+The imported disk appears as `unused0` until that second command attaches it.
+
+</details>
+
+Replace `local-lvm` with your own storage name — `pvesm status` lists them.
+
+Add the cloud-init drive, set the boot disk, and wire up a serial console:
+
+```bash
+qm set 9000 --ide2 local-lvm:cloudinit --boot order=scsi0 --serial0 socket --vga serial0
+```
+
+`--vga serial0` matters: Arch cloud images write their boot output to the serial
+port, so without it the Proxmox console tab is just a black rectangle and you'll
+assume the VM is broken.
+
+Resize now, while you still can:
+
+```bash
+qm resize 9000 scsi0 20G
+```
+
+:::caution
+A template's disk **cannot be resized**. Every clone inherits this size, and
+growing it later means resizing each clone individually. Do it before
+`qm template`.
+:::
+
+## Set the cloud-init defaults
+
+Every clone inherits these; anything can be overridden per clone.
+
+```bash
+qm set 9000 --ciuser bryan --sshkeys ~/.ssh/id_ed25519.pub --ipconfig0 ip=dhcp --nameserver 10.0.0.1
+```
+
+| Option | Sets |
+| --- | --- |
+| `--ciuser` | The user created on first boot |
+| `--sshkeys` | Public key file added to that user's `authorized_keys` |
+| `--ipconfig0` | `ip=dhcp`, or `ip=10.0.0.31/24,gw=10.0.0.1` for static |
+| `--nameserver` | DNS resolver |
+| `--searchdomain` | DNS search domain |
+| `--cipassword` | A password — see below |
+
+:::caution
+Skip `--cipassword`. It's stored in cleartext in the VM config on the host and
+baked into every clone. Key auth covers SSH; if you need a console password on a
+particular guest, set it inside that guest with `passwd` after first boot.
+:::
+
+## Prepare the guest
+
+Boot it once to install the agent and strip out the identity, so clones don't come
+up as twins.
+
+```bash
+qm start 9000
+```
+
+Find the address in the web UI's summary tab, then log in — note that no password
+exists, so the key is the only way in:
+
+```bash
+ssh bryan@10.0.0.31
+```
+
+Inside the VM:
+
+```bash
+sudo pacman -Syu --noconfirm
+sudo pacman -S --noconfirm qemu-guest-agent
+sudo systemctl enable --now qemu-guest-agent
+```
+
+```bash
+sudo pacman -Scc --noconfirm
+```
+
+Now clear everything that has to be unique per machine:
+
+```bash
+sudo cloud-init clean --logs
+sudo rm -f /etc/ssh/ssh_host_*
+sudo truncate -s 0 /etc/machine-id
+sudo truncate -s 0 /var/lib/dbus/machine-id
+```
+
+```bash
+sudo poweroff
+```
+
+:::danger
+**`truncate`, not `rm`,** for `machine-id`. systemd regenerates the ID at boot only
+when the file exists and is empty — delete it outright and some distros fail to
+boot cleanly.
+
+Skipping this step is the failure that wastes an afternoon: every clone presents
+the same machine ID, your DHCP server hands them all the same lease, and two VMs
+fight over one address while appearing individually fine.
+:::
+
+`cloud-init clean` resets the "already ran" flag, so provisioning happens again on
+each clone. Without it, clones keep the template's hostname and user config.
+
+## Convert to a template
+
+One-way. The VM becomes read-only and can only be cloned from.
+
+```bash
+qm template 9000
+```
+
+## Clone it
+
+```bash
+qm clone 9000 101 --name pihole --full
+```
+
+```bash
+qm set 101 --ipconfig0 ip=10.0.0.41/24,gw=10.0.0.1 --nameserver 1.1.1.1
+```
+
+```bash
+qm start 101
+```
+
+| Clone type | Behaviour |
+| --- | --- |
+| `--full` | Independent copy. Slower, larger, and the template can later change or be deleted freely |
+| linked (default) | Stores only the delta against the template disk. Provisions in seconds, but the template must stay untouched forever |
+
+Use full clones for anything you intend to keep. Linked is for throwaway test VMs.
+
+The web UI does all of this too — right-click the template, **Clone**, then edit the
+**Cloud-Init** tab on the new VM *before* the first boot.
+
+## Verify
+
+<Steps>
+
+1. Provisioning finished without errors:
+
+   ```bash
+   cloud-init status --long
+   ```
+
+   `status: done` is what you want. `error` — read `/var/log/cloud-init.log`.
+
+2. The machine ID is unique. Run it on two clones and compare:
+
+   ```bash
+   cat /etc/machine-id
+   ```
+
+3. Host keys were regenerated, so SSH doesn't warn about a changed key when you
+   connect to the next clone at the same address:
+
+   ```bash
+   ls -l /etc/ssh/ssh_host_*
+   ```
+
+4. The agent is running, which is what lets Proxmox report the guest's IP and shut
+   it down cleanly:
+
+   ```bash
+   systemctl status qemu-guest-agent
+   ```
+
+</Steps>
+
+## Troubleshooting
+
+**Console is blank on first boot** — `--vga serial0` wasn't set. `qm set 9000 --serial0 socket --vga serial0`.
+
+**Cloud-init didn't apply anything** — the `ide2` cloud-init drive is missing, or
+`cloud-init clean` was never run before templating. Check with `qm config 9000`.
+
+**Clone gets no IP** — either the bridge is wrong (`--net0 virtio,bridge=vmbr0`) or
+several clones share a machine ID. Compare `/etc/machine-id` across them.
+
+**Proxmox shows no IP for a running VM** — the guest agent isn't installed or
+enabled inside the guest. `--agent 1` on the host is only half of it.
+
+**`can't resize disk of a template`** — as warned above. Clone it, resize the clone,
+and rebuild the template from that if you need a bigger baseline.
+
+Host-level setup is in [Proxmox on a Refurbished Desktop](../setup/proxmox.mdx).

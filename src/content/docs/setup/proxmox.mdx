@@ -1,0 +1,441 @@
+---
+title: Proxmox on a Refurbished Desktop
+description: Turn an ex-corporate desktop into a Proxmox VE host — what to buy, which BIOS settings matter, install, post-install, and the first VM.
+sidebar:
+  order: 3
+  label: Proxmox
+---
+
+import { Tabs, TabItem, Steps } from '@astrojs/starlight/components';
+
+An ex-corporate small-form-factor desktop is the best value in homelabbing.
+Companies lease them for three to five years, return them, and they reach the
+refurb market at a fraction of new — built to run all day, with quiet fans and
+decent power supplies.
+
+Budget roughly **$150–400** all in, plus an 8 GB USB stick and a wired Ethernet
+drop. You need a monitor and keyboard for the install; everything after that is
+remote.
+
+## Why not something else
+
+| Platform | Cost | Cores | Max RAM | Storage | Idle |
+| --- | --- | --- | --- | --- | --- |
+| **Refurb SFF desktop** | $150–300 | 4–8 | 64–128 GB | NVMe + SATA | 20–40 W |
+| Raspberry Pi 4/5 | $60–100 | 4 | 8 GB | microSD / USB | 5–8 W |
+| Consumer NAS | $350–600 | 2–4 | 4–32 GB | SATA bays only | 15–30 W |
+| New mini PC | $250–500 | 4–8 | 32–64 GB | 1–2 NVMe | 10–25 W |
+
+The desktop wins on specs per dollar and on headroom — RAM slots, SATA ports, and
+a PCIe slot you'll eventually want. Mini PCs draw less power but cost more for the
+same work and can't be expanded.
+
+Target machines originally sold **2018–2022**: cheap now, but new enough for NVMe,
+DDR4, and eight cores.
+
+## What to buy
+
+### CPU
+
+Two features matter, and they're different things:
+
+- **VT-x** / **AMD-V** — basic virtualization. Everything needs it.
+- **VT-d** / **AMD IOMMU** — PCI passthrough, for handing a GPU, NIC, or USB
+  controller directly to a VM.
+
+Core count beats clock speed, because every VM and container gets allocated cores.
+Aim for an **Intel i5 or i7, 6th through 10th gen**, or **Ryzen 3000/5000** if you
+find one.
+
+Skip Celeron and Pentium — too few cores and frequently no VT-d. Skip anything
+older than 6th gen Intel; no NVMe support.
+
+:::caution
+Not every i5 has VT-d — it varies by SKU, not by tier. Look the exact model up on
+[Intel ARK](https://ark.intel.com) and search the page for "Directed I/O" before
+you buy. This is the one mistake that can't be fixed later.
+:::
+
+### RAM
+
+| Amount | Gets you |
+| --- | --- |
+| 16 GB | Proxmox plus two or three light containers. The floor |
+| 32 GB | A Docker host, Pi-hole, file server, and room to experiment. The target |
+| 64 GB | Databases, transcoding, or a Windows VM |
+
+DDR4 is cheap — a 32 GB kit runs $40–60. Install in matched pairs for dual
+channel, and check the *motherboard's* maximum before ordering, since some
+micro/tiny models cap at 32 GB.
+
+ECC corrects single-bit errors and pairs well with ZFS, but business desktops
+almost never support it. Non-ECC with ZFS is fine in practice for a homelab; if
+you want ECC, look at HP Z-series or Dell Precision instead.
+
+### Storage and network
+
+A small **NVMe** ($30–40 for 500 GB) for Proxmox and VM disks, then larger SATA
+SSDs later for bulk data. Count the SATA ports before buying — an optical drive
+bay plus a $10 caddy is often a free extra 2.5" slot.
+
+Onboard gigabit is fine to start. **Intel NICs beat Realtek** for driver support
+and CPU overhead; a used Intel I350-T2 dual port is about $20 and worth it once you
+care about VLANs.
+
+### Form factor
+
+<Tabs syncKey="form-factor">
+	<TabItem label="SFF">
+		The recommendation. Full-height PCIe slot, room for two or three drives,
+		decent airflow, fits on a shelf.
+	</TabItem>
+	<TabItem label="Micro / Tiny">
+		Book-sized. One drive, no PCIe. Good where space is the constraint — watch
+		for soldered RAM.
+	</TabItem>
+	<TabItem label="Mini Tower">
+		Most bays, best cooling, multiple PCIe slots. Take this if you plan on a GPU
+		for passthrough or a pile of disks.
+	</TabItem>
+</Tabs>
+
+### Known-good models
+
+| Model | Generation | Typical price | Notes |
+| --- | --- | --- | --- |
+| Dell OptiPlex 5060 / 7060 | 8th gen | $150–250 | The default homelab choice. Well documented, parts everywhere |
+| Dell OptiPlex 7070 / 7080 | 9th–10th gen | $200–350 | Newer, slightly better efficiency |
+| HP EliteDesk 800 G4 / G5 | 8th–9th gen | $150–300 | Well built; some SFF models use proprietary PSU connectors |
+| Lenovo ThinkCentre M720 / M920 | 8th–9th gen | $150–400 | Reliable. Tiny variants are excellent but pricier |
+
+Avoid: soldered RAM, proprietary power supplies, "Eco"/"Green" SKUs with
+underclocked CPUs, and anything you can't confirm has VT-d.
+
+Buy from eBay (filter to 99%+ sellers), Amazon Renewed, a local IT recycler, or
+`govdeals.com` for surplus auctions.
+
+## Prep the hardware
+
+Open it and blow out the CPU heatsink fins, case fans, and intake vents —
+five minutes of compressed air buys real thermal headroom. Glance over the board
+for swollen capacitors while you're in there.
+
+Fit the RAM and the NVMe drive, then POST once and confirm the BIOS reports the
+full amount of memory before going further. If it's short, reseat the DIMMs.
+
+### BIOS settings
+
+The most important step in the whole build. <kbd>F2</kbd> or <kbd>F12</kbd> at POST
+on most of these machines.
+
+| Setting | Usually under | Set to | Why |
+| --- | --- | --- | --- |
+| Intel VT-x / AMD-V | CPU or Security | **Enabled** | Any virtualization at all |
+| Intel VT-d / AMD IOMMU | CPU or Security | **Enabled** | PCI passthrough |
+| Boot order | Boot | USB, then NVMe | To boot the installer |
+| Secure Boot | Security / UEFI | **Disabled** | The installer may not boot with it on |
+| Wake-on-LAN | Power Management | **Enabled** | Power it on remotely |
+| AC Power Recovery | Power Management | **Power On** | Comes back by itself after an outage |
+
+:::note
+VT-x and VT-d are frequently in **different menus**. Enable both. AC Power
+Recovery is the one people forget and then regret — without it, a five-second
+outage means the server stays down until you're physically there.
+:::
+
+## Install Proxmox VE
+
+Download the ISO from
+[the Proxmox downloads page](https://www.proxmox.com/en/downloads/proxmox-virtual-environment/iso)
+and check its SHA256 against the value listed there.
+
+Write it to USB with [balenaEtcher](https://etcher.balena.io/), which handles the
+hybrid ISO correctly on all three platforms. From a shell instead:
+
+<Tabs syncKey="os">
+	<TabItem label="Windows">
+		```powershell
+		winget install --id Balena.Etcher -e
+		```
+
+		Use the GUI. `dd` isn't available and the PowerShell equivalents don't write
+		a bootable hybrid image reliably.
+	</TabItem>
+	<TabItem label="Linux">
+		```bash
+		lsblk -o NAME,SIZE,MODEL
+		```
+
+		```bash
+		sudo dd if=proxmox-ve_9.0-1.iso of=/dev/sdb bs=4M status=progress oflag=sync
+		```
+
+		:::danger
+		`dd` writes to whatever you name with no confirmation. Verify the device is
+		the USB stick — check the size and model in the `lsblk` output above, not
+		just the letter.
+		:::
+	</TabItem>
+	<TabItem label="macOS">
+		```bash
+		diskutil list
+		```
+
+		```bash
+		diskutil unmountDisk /dev/disk4
+		sudo dd if=proxmox-ve_9.0-1.iso of=/dev/rdisk4 bs=4m status=progress
+		diskutil eject /dev/disk4
+		```
+
+		`rdisk` rather than `disk` is roughly an order of magnitude faster.
+	</TabItem>
+</Tabs>
+
+Boot from the USB and work through the installer:
+
+<Steps>
+
+1. Accept the EULA.
+
+2. **Target disk** — your NVMe. It gets wiped entirely.
+
+3. **Filesystem** — see below.
+
+4. **Location, timezone, keyboard.**
+
+5. **Root password and email.** The email address is where alerts and backup
+   failures go, so use a real one.
+
+6. **Network** — a **static** IP, outside your router's DHCP pool:
+
+   | Field | Value |
+   | --- | --- |
+   | Hostname | `pve.lan` |
+   | IP / CIDR | `10.0.0.20/24` |
+   | Gateway | `10.0.0.1` |
+   | DNS | `10.0.0.1` or `1.1.1.1` |
+
+</Steps>
+
+:::caution
+Avoid a `.local` hostname. It's reserved for mDNS and resolves by multicast on
+macOS, iOS, and systemd-resolved, which will fight your DNS. Use `.lan`,
+`.internal`, or `home.arpa`.
+:::
+
+### Which filesystem
+
+| Option | Needs | Choose it when |
+| --- | --- | --- |
+| **ext4** | 1 disk | You have one SSD and want no surprises |
+| **LVM-thin** | 1 disk | You want to over-commit disk across many VMs |
+| **ZFS mirror** | 2 similar disks | You want to survive a dead drive |
+| **ZFS RAIDZ1** | 3+ disks | You have the hardware and want capacity with redundancy |
+
+This choice only covers the **boot drive**. You can add ZFS, LVM, NFS, or CIFS
+pools afterwards from the web UI, so don't agonise over it. ZFS wants more RAM —
+budget a gigabyte or so per terabyte on top of your VM allocations.
+
+Write the IP down before the installer reboots. Remove the USB when prompted.
+
+## Post-install
+
+Everything here runs as root on the host, over SSH or the console.
+
+The web UI is at `https://10.0.0.20:8006`. The certificate warning is expected —
+Proxmox self-signs. Fix it properly later with [a local CA](../howto/local-ca.mdx).
+
+### Fix the repositories
+
+A fresh install points at the enterprise repository, which 401s without a
+subscription and makes `apt update` fail.
+
+Check which Debian base you're on first — the repo line has to match:
+
+```bash
+. /etc/os-release && echo "$VERSION_CODENAME"
+```
+
+<Tabs syncKey="pve-version">
+	<TabItem label="PVE 9 (trixie)">
+		Version 9 uses deb822 `.sources` files:
+
+		```bash
+		sed -i 's/^Enabled: true/Enabled: false/' /etc/apt/sources.list.d/pve-enterprise.sources
+		```
+
+		```bash
+		cat > /etc/apt/sources.list.d/pve-no-subscription.sources <<'EOF'
+		Types: deb
+		URIs: http://download.proxmox.com/debian/pve
+		Suites: trixie
+		Components: pve-no-subscription
+		Signed-By: /usr/share/keyrings/proxmox-archive-keyring.gpg
+		EOF
+		```
+	</TabItem>
+	<TabItem label="PVE 8 (bookworm)">
+		```bash
+		sed -i 's/^deb/#deb/' /etc/apt/sources.list.d/pve-enterprise.list
+		```
+
+		```bash
+		echo "deb http://download.proxmox.com/debian/pve bookworm pve-no-subscription" > /etc/apt/sources.list.d/pve-no-subscription.list
+		```
+	</TabItem>
+</Tabs>
+
+```bash
+apt update && apt full-upgrade -y && reboot
+```
+
+### Silence the subscription popup
+
+Optional, and it comes back every time the toolkit package updates:
+
+```bash
+sed -Ei "s/NotFound/Active/g; s/notfound/active/g" /usr/share/javascript/proxmox-widget-toolkit/proxmoxlib.js
+systemctl restart pveproxy
+```
+
+Proxmox VE is free and open source; the nag exists to fund it. If this host does
+anything you'd miss, a subscription is a reasonable thing to buy.
+
+### Lock down access
+
+This host is the most valuable machine on your network — compromise it and every
+VM on it goes with it.
+
+Get your key on first, then disable passwords. Full walkthrough in
+[SSH Keys](../howto/ssh-keys.mdx):
+
+```bash
+mkdir -p ~/.ssh && chmod 700 ~/.ssh
+```
+
+Use a drop-in rather than editing `sshd_config`, so package upgrades leave it
+alone:
+
+```bash title="/etc/ssh/sshd_config.d/99-hardening.conf"
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+PubkeyAuthentication yes
+```
+
+```bash
+sshd -t && systemctl restart ssh
+```
+
+:::danger
+Confirm key login works from a **second** terminal before closing the one you're
+in. Proxmox's console is your only way back if you get this wrong, and that means
+walking to the machine.
+:::
+
+The built-in firewall lives at **Datacenter → Firewall**. Add rules permitting 22
+and 8006 from your LAN subnet *before* enabling it — enabling it with an empty
+ruleset locks you out of the interface you're using to configure it.
+
+## First container and VM
+
+Containers are the better first thing: they start in seconds and cost almost
+nothing.
+
+```bash
+pveam update
+```
+
+```bash
+pveam available --section system
+```
+
+```bash
+pveam download local:vztmpl debian-12-standard_12.7-1_amd64.tar.zst
+```
+
+Take the filename from the `available` output — the version numbers move.
+
+Then **Create CT** in the web UI: ID `100`, hostname `test-ct`, the template you
+just pulled, 8 GB disk, 1–2 cores, 512 MB RAM, bridge `vmbr0`. Start it, open
+**Console**, and you're at a Debian prompt.
+
+| Use | Because |
+| --- | --- |
+| **LXC container** | Shares the host kernel — a fraction of the RAM and disk. Pi-hole, Samba, monitoring agents, DNS |
+| **VM** | Its own kernel. Windows, Docker hosts, anything needing full isolation or a custom kernel |
+
+For VMs, don't install from an ISO by hand more than once. Build a cloud-init
+template instead and clone it in seconds —
+[Proxmox cloud-init template](../howto/proxmox-cloud-init-template.mdx).
+
+### Back it up now
+
+Set this up before there's anything on the box worth losing, so it's already a
+habit: **Datacenter → Backup → Add**, daily, all guests, **Snapshot** mode, to a
+*different physical disk* than the VMs live on.
+
+A backup on the same disk as the thing it's backing up protects you from mistakes
+but not from hardware.
+
+## Power, noise, placement
+
+| Class | Idle | Yearly at $0.12/kWh |
+| --- | --- | --- |
+| Micro / Tiny | 8–15 W | $8–16 |
+| SFF | 20–40 W | $21–42 |
+| Mini tower | 30–55 W | $32–58 |
+
+Measure rather than estimate — a smart plug with energy monitoring gives you the
+real number and, more usefully, remote power cycling for when the host locks up
+hard.
+
+For noise, a Noctua replacement case fan ($15–20, check whether you need 80 mm or
+92 mm) and a "quiet" BIOS fan profile do most of the work. If it still has a
+spinning disk, that's the loudest part.
+
+Keep it ventilated, on wired Ethernet, and behind a small UPS ($50–80). Proxmox
+can shut down cleanly on low battery, which is the difference between an outage
+and a corrupted ZFS pool.
+
+## Where to go next
+
+| Project | Runs best as | Resources |
+| --- | --- | --- |
+| Docker host | VM | 2 cores, 2–4 GB |
+| Pi-hole / AdGuard | LXC | 1 core, 512 MB |
+| File server ([Samba](../howto/samba-share.mdx)) | LXC | 1–2 cores, 512 MB |
+| Home Assistant | VM | 2 cores, 2 GB |
+| Jellyfin / Plex | VM or LXC | 2–4 cores, 2–4 GB |
+| Reverse proxy | LXC | 1 core, 512 MB |
+
+Pi-hole is the quickest visible win — an LXC, point the router's DNS at it, done in
+fifteen minutes. A **Docker host VM** is the most versatile, and unlocks dozens of
+services from one guest: [Install Docker](../howto/install-docker.mdx), then
+[a folder layout](../howto/docker-folder-layout.md) that won't need redoing.
+
+Add one thing at a time. A stable homelab beats a clever one.
+
+## Checklist
+
+<Steps>
+
+1. CPU confirmed to support VT-x **and** VT-d.
+
+2. 16 GB RAM minimum, POST-verified.
+
+3. Boot SSD installed; BIOS set for virtualization, boot order, and AC power
+   recovery.
+
+4. Proxmox installed with a static IP you wrote down.
+
+5. Enterprise repo disabled, no-subscription repo added, `apt full-upgrade` clean.
+
+6. Key-based SSH working, passwords disabled, firewall rules tested before enabling.
+
+7. One container running.
+
+8. Scheduled backups to a separate disk.
+
+9. Idle power measured.
+
+</Steps>

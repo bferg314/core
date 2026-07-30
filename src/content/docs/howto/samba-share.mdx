@@ -1,0 +1,303 @@
+---
+title: Share a Folder with Samba
+description: Serve a Linux directory over SMB to Windows, macOS, and other Linux boxes — with real permissions, not chmod 777.
+sidebar:
+  order: 4
+---
+
+import { Tabs, TabItem, Steps } from '@astrojs/starlight/components';
+
+Samba speaks SMB, which is what Windows File Explorer, macOS Finder, and most TVs
+and media players expect. This shares `/mnt/media` from the host at `10.0.0.14` as
+a share named `media`.
+
+## Install
+
+<Tabs syncKey="distro">
+	<TabItem label="Debian/Ubuntu">
+		```bash
+		sudo apt update && sudo apt install -y samba samba-common-bin
+		```
+	</TabItem>
+	<TabItem label="Fedora">
+		```bash
+		sudo dnf install -y samba samba-common samba-client
+		```
+	</TabItem>
+	<TabItem label="Arch">
+		```bash
+		sudo pacman -S samba
+		```
+
+		Arch ships no default config, and `smbd` won't start without one. The
+		config below is the whole file, so that's fine.
+	</TabItem>
+</Tabs>
+
+## Prepare the directory
+
+Make a group for who's allowed in, and put yourself in it:
+
+```bash
+sudo groupadd -f media
+sudo usermod -aG media bryan
+```
+
+```bash
+sudo mkdir -p /mnt/media
+sudo chgrp -R media /mnt/media
+sudo chmod -R 2775 /mnt/media
+```
+
+:::caution
+Most Samba guides tell you to `chmod 777` the share directory. Don't. It gives
+every local account and every service on the box write access to your files, and
+it doesn't fix the problem people reach for it to solve — that's almost always
+`valid users` or a missing Samba password, not Unix permissions.
+:::
+
+The setgid bit (the `2` in `2775`) makes new files inherit the `media` group, which
+is what keeps a multi-user share working over time.
+
+## Configure
+
+Back up whatever came with the package:
+
+```bash
+sudo cp /etc/samba/smb.conf /etc/samba/smb.conf.bak
+```
+
+```ini title="/etc/samba/smb.conf"
+[global]
+   workgroup = WORKGROUP
+   server string = homelab
+   security = user
+   map to guest = never
+
+   # Refuse SMB1 outright — it's how ransomware spreads
+   server min protocol = SMB3
+   client min protocol = SMB2
+
+   # Only answer on the LAN
+   interfaces = lo eth0
+   bind interfaces only = yes
+   hosts allow = 127.0.0.1 10.0.0.0/24
+
+   logging = file
+   log file = /var/log/samba/log.%m
+   max log size = 1000
+
+[media]
+   path = /mnt/media
+   browseable = yes
+   read only = no
+   valid users = @media
+   force group = media
+   create mask = 0664
+   force create mode = 0664
+   directory mask = 2775
+   force directory mode = 2775
+```
+
+Check the file parses before restarting anything:
+
+```bash
+sudo testparm -s
+```
+
+It prints the effective config and names the line number of anything it doesn't
+understand. Set `interfaces` to your real NIC — `ip -br link` lists them.
+
+## Add a Samba password
+
+```bash
+sudo smbpasswd -a bryan
+```
+
+:::note
+This is the single most common reason a correct-looking share refuses to connect.
+**Samba keeps its own password database**, separate from Unix logins. The account
+must already exist as a Unix user, and setting or changing its Linux password does
+nothing to the Samba one.
+:::
+
+```bash
+sudo pdbedit -L
+```
+
+That lists the accounts Samba knows about. Remove one with `sudo smbpasswd -x bryan`.
+
+## Start it
+
+```bash
+sudo systemctl enable --now smbd nmbd
+```
+
+On Arch the units are `smb` and `nmb`. `nmbd` only provides legacy NetBIOS name
+browsing — you can skip it entirely if you always connect by IP or DNS name.
+
+## Open the firewall
+
+<Tabs syncKey="distro">
+	<TabItem label="Debian/Ubuntu">
+		```bash
+		sudo ufw allow from 10.0.0.0/24 to any app Samba
+		```
+
+		Scoping it to the LAN subnet is better than plain `ufw allow samba`, which
+		accepts from anywhere the box is reachable.
+	</TabItem>
+	<TabItem label="Fedora">
+		```bash
+		sudo firewall-cmd --permanent --add-service=samba
+		sudo firewall-cmd --reload
+		```
+	</TabItem>
+	<TabItem label="Arch">
+		```bash
+		sudo ufw allow from 10.0.0.0/24 to any app Samba
+		```
+	</TabItem>
+</Tabs>
+
+:::danger
+Never forward ports 139 or 445 through your router. SMB exposed to the internet is
+scanned and exploited continuously. Reach a home share from outside over
+[SSH](ssh-keys.mdx) or a VPN instead.
+:::
+
+## Connect
+
+<Tabs syncKey="os">
+	<TabItem label="Windows">
+		In File Explorer's address bar:
+
+		```text
+		\\10.0.0.14\media
+		```
+
+		Map it to a drive letter that survives reboots:
+
+		```powershell
+		net use M: \\10.0.0.14\media /user:bryan /persistent:yes
+		```
+
+		Windows caches credentials aggressively. After changing a Samba password,
+		clear the old entry or you'll keep getting refused with the right password:
+
+		```powershell
+		cmdkey /delete:10.0.0.14
+		```
+	</TabItem>
+	<TabItem label="Linux">
+		```bash
+		smbclient -L //10.0.0.14 -U bryan
+		```
+
+		That lists the shares and is the fastest way to prove the server side works
+		before involving mounts. To mount it:
+
+		```bash
+		sudo apt install -y cifs-utils
+		```
+
+		```bash
+		sudo mkdir -p /mnt/remote-media
+		sudo mount -t cifs //10.0.0.14/media /mnt/remote-media -o username=bryan,uid=$(id -u),gid=$(id -g)
+		```
+
+		Without `uid`/`gid`, everything on the mount appears owned by root.
+	</TabItem>
+	<TabItem label="macOS">
+		In Finder, <kbd>Cmd</kbd>+<kbd>K</kbd>, then:
+
+		```text
+		smb://10.0.0.14/media
+		```
+
+		macOS creates `.DS_Store` files throughout any share it browses. Add
+		`veto files = /._*/.DS_Store/` to the share block if that bothers you.
+	</TabItem>
+</Tabs>
+
+## Mount at boot from Linux
+
+Never put the password in `/etc/fstab` — that file is world-readable.
+
+```bash title="/root/.smbcredentials"
+username=bryan
+password=the-samba-password
+```
+
+```bash
+sudo chmod 600 /root/.smbcredentials
+```
+
+```text title="/etc/fstab"
+//10.0.0.14/media  /mnt/remote-media  cifs  credentials=/root/.smbcredentials,uid=1000,gid=1000,_netdev,nofail,x-systemd.automount  0  0
+```
+
+```bash
+sudo mount -a
+```
+
+`_netdev` and `x-systemd.automount` tell systemd to wait for the network and mount
+on first access, rather than hanging the boot for 90 seconds when the server is
+off. `nofail` keeps a missing server from dropping you to an emergency shell.
+
+## Make it appear in Windows "Network"
+
+Windows 10 and 11 removed SMB1, and SMB1 was what network browsing relied on. The
+share works fine by name or IP but won't show up in the Network list. The fix is a
+WS-Discovery responder:
+
+```bash
+sudo apt install -y wsdd
+```
+
+```bash
+sudo systemctl enable --now wsdd
+```
+
+## Troubleshooting
+
+**`NT_STATUS_LOGON_FAILURE`** — no Samba password for that user. Run
+`sudo smbpasswd -a bryan`. On Windows, also clear cached credentials with
+`cmdkey /delete`.
+
+**`NT_STATUS_ACCESS_DENIED` after connecting** — Samba let you in and Unix
+permissions stopped you. Check group membership took effect:
+
+```bash
+id -nG bryan
+```
+
+Group changes need a fresh login session. `smbd` picks them up on restart.
+
+**Connects but the share is empty or read-only** — `valid users`, `force group`,
+or the directory's own ownership. `sudo testparm -v | grep -A20 '\[media\]'` shows
+what Samba actually believes.
+
+**Nothing responds at all:**
+
+```bash
+sudo ss -tulpn | grep -E '445|139'
+```
+
+```bash
+sudo journalctl -u smbd -n 50 --no-pager
+```
+
+Per-client logs are more specific — `/var/log/samba/log.10.0.0.23` for the machine
+that failed.
+
+**Permission denied on Fedora with correct-looking permissions** — SELinux. Label
+the directory rather than disabling enforcement:
+
+```bash
+sudo semanage fcontext -a -t samba_share_t "/mnt/media(/.*)?"
+sudo restorecon -Rv /mnt/media
+```
+
+To share a disk you just added, see [Format a Disk](format-a-disk.mdx). The
+firewall and hardening context is in [the Linux runbook](../setup/linux.mdx).

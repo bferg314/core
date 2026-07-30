@@ -249,6 +249,42 @@ Turn on Developer Mode, which allows symlinks without elevation:
 Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock' -Name AllowDevelopmentWithoutDevLicense -Value 1
 ```
 
+Dark mode, without opening Settings — works on Windows Server too, where the
+personalization pages are absent:
+
+```powershell
+$themes = 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize'
+New-ItemProperty -Path $themes -Name SystemUsesLightTheme -Value 0 -Type DWord -Force
+New-ItemProperty -Path $themes -Name AppsUseLightTheme -Value 0 -Type DWord -Force
+```
+
+Bring back the full Windows 10 right-click menu, instead of the truncated Windows
+11 one with "Show more options" at the bottom:
+
+```powershell
+New-Item -Path 'HKCU:\Software\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}\InprocServer32' -Force | Out-Null
+Set-ItemProperty -Path 'HKCU:\Software\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}\InprocServer32' -Name '(Default)' -Value '' -Type String
+```
+
+Clear desktop — hide the Recycle Bin and the "Learn about this picture" spotlight
+icon:
+
+```powershell
+$icons = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\HideDesktopIcons\NewStartPanel'
+New-Item -Path $icons -Force | Out-Null
+Set-ItemProperty -Path $icons -Name '{645FF040-5081-101B-9F08-00AA002F954E}' -Value 1 -Type DWord
+Set-ItemProperty -Path $icons -Name '{2cc5ca98-6485-489a-920e-b3e88a6ccce3}' -Value 1 -Type DWord
+```
+
+Those two GUIDs are the Recycle Bin and the spotlight icon respectively. `1` hides,
+`0` shows — set them back to `0` to reverse either one.
+
+Most of these need Explorer restarted before they take effect:
+
+```powershell
+Stop-Process -Name explorer -Force
+```
+
 ## Check what's slowing down boot
 
 ```powershell
