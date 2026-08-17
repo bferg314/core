@@ -20,5 +20,8 @@ pnpm-debug.log*
 # macOS-specific files
 .DS_Store
 
+# crash dumps (headless Chromium drops core.<pid> in the cwd)
+core.*
+
 # local, machine-specific agent settings
 .claude/settings.local.json
