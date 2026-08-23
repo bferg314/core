@@ -3,6 +3,9 @@ title: Deploy Node Apps on Cloudflare Workers
 description: Host a Node project on Cloudflare Workers for free — including an existing Express app, sub-sites on a domain you own, and free database backends.
 sidebar:
   order: 9
+  badge:
+    text: Draft
+    variant: caution
 ---
 
 import { Tabs, TabItem, Steps } from '@astrojs/starlight/components';
@@ -13,6 +16,20 @@ card, and TLS plus a global CDN you don't configure. The catch is that Workers
 run on `workerd`, not Node, so "deploy your Node project" means "run your code
 on a runtime that emulates Node well enough" — which, as of 2025, includes
 running an unmodified Express app.
+
+:::caution[Draft — written from the docs, not yet proven out]
+Everything here was checked against Cloudflare's documentation in August 2026,
+but none of it has been run end to end on a real project yet. Treat it as a plan
+to follow, not a runbook that's known to work. Still to verify:
+
+- [ ] Connecting a repo in the dashboard, exact menu path and build settings
+- [ ] An Express app actually running under `httpServerHandler`
+- [ ] A custom subdomain end to end, including cert issuance time
+- [ ] A path route on an existing site, and whether the `100::` placeholder is still needed
+- [ ] D1 from a deployed Worker, not just `wrangler dev`
+
+Delete this box once it's all confirmed.
+:::
 
 ## What free actually covers
 
@@ -66,11 +83,75 @@ Workers run in V8 isolates, so the mental model shifts in a few places:
   before that, add the `nodejs_compat` flag. `node:http2`, `node:vm`, and
   `node:cluster` exist as stubs that import but don't run.
 
+## Deploy from a GitHub repo, no CLI
+
+Workers Builds watches a repository and deploys on push, which is the shortest
+path if the code already lives on GitHub. It's the same product Pages used —
+build, then deploy — pointed at a Worker.
+
+<Steps>
+
+1. Commit a `wrangler.jsonc` to the repository root. The dashboard path still
+   needs one, and the `name` in it **must match** the Worker's name in
+   Cloudflare or the build fails:
+
+   ```jsonc title="wrangler.jsonc"
+   {
+   	"name": "notes-api",
+   	"main": "src/index.js",
+   	"compatibility_date": "2026-08-04",
+   	"compatibility_flags": ["nodejs_compat"]
+   }
+   ```
+
+2. In the dashboard, go to **Workers & Pages → Create**, then choose to import
+   an existing Git repository. Authorize the **Cloudflare Workers & Pages**
+   GitHub App when prompted, and scope it to **only select repositories** rather
+   than the whole account.
+
+3. Set the build settings:
+
+   | Setting | Value |
+   | --- | --- |
+   | Build command | `npm run build` — or leave empty if there's no build step |
+   | Deploy command | `npx wrangler deploy` (the default) |
+   | Root directory | `/`, or the subdirectory in a monorepo |
+   | Production branch | `main` |
+
+4. Push a commit. The build log is under **Settings → Builds** on the Worker.
+
+</Steps>
+
+After that, a push to `main` deploys to production. A push to any other branch
+runs `npx wrangler versions upload` instead — it builds and gives you a preview
+URL without touching what's live, which makes a pull request a testable
+deployment.
+
+Build settings you'll want eventually:
+
+- **Build watch paths** — in a monorepo, stop every commit from rebuilding
+  every Worker.
+- **Build-time environment variables** — separate from runtime `vars`, and not
+  readable at runtime. `WORKERS_CI_BRANCH` and `WORKERS_CI_COMMIT_SHA` are
+  injected for you.
+- **Deploy command `npx wrangler versions upload`** on production too, if you'd
+  rather promote releases by hand than have every merge go live.
+
+Free plan builds: **3,000 build minutes/month**, one build at a time, and a
+20-minute ceiling per build.
+
+:::tip
+An existing Worker you first deployed from your laptop can be connected to a
+repo later — **Settings → Builds → Connect**. It doesn't have to be decided up
+front.
+:::
+
 ## Set up wrangler
 
-`wrangler` is the CLI for everything — local dev, deploys, secrets, databases,
-logs. Install it per-project rather than globally so the version is pinned in
-`package.json`:
+Worth having even if the dashboard does your deploys: `wrangler` is what runs
+the project locally, creates databases, sets secrets, and tails production logs.
+Install it per-project rather than globally so the version is pinned in
+`package.json` — Workers Builds then uses that same pinned version:
 
 ```bash
 npm install -D wrangler
@@ -90,7 +171,7 @@ instead:
 export CLOUDFLARE_API_TOKEN=your-token-here
 ```
 
-## Deploy something in two minutes
+## Or deploy from the command line
 
 <Steps>
 
@@ -440,9 +521,11 @@ The auto-pause behavior is what usually decides it. A Supabase project that
 sleeps after a week of no traffic is fine for a side project and miserable for
 something you check monthly. D1 and Neon don't pause.
 
-## Deploy from GitHub Actions
+## Deploy from GitHub Actions instead
 
-Add `CLOUDFLARE_API_TOKEN` as a repository secret, then:
+Workers Builds covers most cases, but a Worker is one job in a longer pipeline —
+tests first, or a deploy that has to wait on something else — Actions gives you
+that control. Add `CLOUDFLARE_API_TOKEN` as a repository secret, then:
 
 ```yaml title=".github/workflows/deploy.yml"
 name: Deploy
@@ -506,4 +589,5 @@ queryable in the dashboard for a week without any extra service.
 - [Node.js compatibility](https://developers.cloudflare.com/workers/runtime-apis/nodejs/)
 - [Deploy an Express app](https://developers.cloudflare.com/workers/tutorials/deploy-an-express-app/)
 - [Custom domains and routes](https://developers.cloudflare.com/workers/configuration/routing/)
+- [Workers Builds](https://developers.cloudflare.com/workers/ci-cd/builds/) — the Git integration
 - [D1](https://developers.cloudflare.com/d1/) and [its pricing](https://developers.cloudflare.com/d1/platform/pricing/)
