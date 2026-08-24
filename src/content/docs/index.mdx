@@ -8,15 +8,13 @@ hero:
     html: |
       <svg class="core-mark" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
         <defs>
-          <linearGradient id="core-mark-fill" x1="0" y1="0" x2="1" y2="1">
+          <linearGradient id="core-mark-fill" gradientUnits="userSpaceOnUse" x1="8" y1="8" x2="120" y2="120">
             <stop offset="0" stop-color="var(--core-mark-from)" />
             <stop offset="1" stop-color="var(--core-mark-to)" />
           </linearGradient>
         </defs>
-        <g fill="url(#core-mark-fill)">
-          <path fill-rule="evenodd" clip-rule="evenodd" d="M81 36 64 0 47 36l-1 2-9-10a6 6 0 0 0-9 9l10 10h-2L0 64l36 17h2L28 91a6 6 0 1 0 9 9l9-10 1 2 17 36 17-36v-2l9 10a6 6 0 1 0 9-9l-9-9 2-1 36-17-36-17-2-1 9-9a6 6 0 1 0-9-9l-9 10v-2Zm-17 2-2 5c-4 8-11 15-19 19l-5 2 5 2c8 4 15 11 19 19l2 5 2-5c4-8 11-15 19-19l5-2-5-2c-8-4-15-11-19-19l-2-5Z" />
-          <path d="M118 19a6 6 0 0 0-9-9l-3 3a6 6 0 1 0 9 9l3-3Zm-96 4c-2 2-6 2-9 0l-3-3a6 6 0 1 1 9-9l3 3c3 2 3 6 0 9Zm0 82c-2-2-6-2-9 0l-3 3a6 6 0 1 0 9 9l3-3c3-2 3-6 0-9Zm96 4a6 6 0 0 1-9 9l-3-3a6 6 0 1 1 9-9l3 3Z" />
-        </g>
+        <path d="M96 32A45 45 0 1 0 96 96" fill="none" stroke="url(#core-mark-fill)" stroke-width="15" stroke-linecap="round" />
+        <circle cx="64" cy="64" r="14" fill="url(#core-mark-fill)" />
       </svg>
   actions:
     - text: Set up a new machine
