@@ -1,0 +1,114 @@
+---
+title: Deploy a Vite App to Cloudflare Workers
+description: Push an existing Vite app's build output to Cloudflare Workers, either with npm run deploy or a GitHub Action that deploys on push.
+sidebar:
+  order: 9
+---
+
+import { Steps } from '@astrojs/starlight/components';
+
+Cloudflare Workers can serve a Vite app's static build output directly — no
+separate host for the frontend, free TLS and CDN, and a `wrangler deploy` that
+takes a few seconds.
+
+## Add Wrangler to the project
+
+<Steps>
+
+1. Install it as a dev dependency so the version is pinned in
+   `package.json`:
+
+   ```bash
+   npm install -D wrangler
+   ```
+
+2. Add the config. `directory` points at whatever Vite already builds to —
+   `dist` unless `vite.config.ts` overrides `build.outDir`:
+
+   ```jsonc title="wrangler.jsonc"
+   {
+   	"name": "my-vite-app",
+   	"compatibility_date": "2026-09-01",
+   	"assets": {
+   		"directory": "./dist",
+   		"not_found_handling": "single-page-application"
+   	}
+   }
+   ```
+
+   `not_found_handling: "single-page-application"` serves `index.html` for any
+   path that isn't a real file, which is what a client-side router needs. Drop
+   it for a static multi-page site.
+
+3. Add a `deploy` script that builds first:
+
+   ```json title="package.json"
+   "scripts": {
+   	"deploy": "vite build && wrangler deploy"
+   }
+   ```
+
+</Steps>
+
+## Deploy by hand
+
+Log in once, then `npm run deploy` builds and pushes:
+
+```bash
+npx wrangler login
+```
+
+```bash
+npm run deploy
+```
+
+The command prints the live URL — `https://my-vite-app.<your-subdomain>.workers.dev`
+the first time, or your custom domain if the config routes one there.
+
+## Or deploy on push with GitHub Actions
+
+Skip the local login by giving Actions its own token.
+
+<Steps>
+
+1. Create a token in the dashboard under **My Profile → API Tokens**, using
+   the **Edit Cloudflare Workers** template.
+
+2. Add it as a repository secret: **Settings → Secrets and variables →
+   Actions → New repository secret**, named `CLOUDFLARE_API_TOKEN`.
+
+3. Commit the workflow:
+
+   ```yaml title=".github/workflows/deploy.yml"
+   name: Deploy
+   on:
+     push:
+       branches: [main]
+   jobs:
+     deploy:
+       runs-on: ubuntu-latest
+       permissions:
+         contents: read
+       steps:
+         - uses: actions/checkout@v4
+         - uses: actions/setup-node@v4
+           with:
+             node-version: 22
+             cache: npm
+         - run: npm ci
+         - run: npx vite build
+         - uses: cloudflare/wrangler-action@v3
+           with:
+             apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+   ```
+
+</Steps>
+
+A push to `main` now builds and deploys. `wrangler-action` reads `name` and
+`assets` straight out of `wrangler.jsonc`, same as running it locally.
+
+## Reference
+
+- [Static assets on Workers](https://developers.cloudflare.com/workers/static-assets/)
+- [Wrangler Action](https://github.com/cloudflare/wrangler-action)
+- [Workers limits](https://developers.cloudflare.com/workers/platform/limits/)
