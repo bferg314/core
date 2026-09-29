@@ -8,6 +8,16 @@ setup runbooks, and cheatsheets.
 knowledge should touch exactly one Markdown file. If you find yourself editing
 `astro.config.mjs` to publish a page, stop — you're doing it the hard way.
 
+## Branch and pull request workflow
+
+- Create a new branch from `main` before making any changes, including docs and
+  agent instructions. Use a separate branch for each independent change.
+- Commit only the files relevant to that change; preserve unrelated work.
+- Run the required checks, push the branch, and open a pull request targeting
+  `main`.
+- Merge the pull request to bring the change into `main`. Never commit directly
+  to `main` or push changes directly to it.
+
 ## Adding a page
 
 1. Pick the folder from the table below.
