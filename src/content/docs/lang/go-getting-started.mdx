@@ -1,0 +1,257 @@
+---
+title: Go, Part 1 — Get Started
+description: Install Go on macOS, Linux, or Windows, run two small programs, and manage command-line tools with gup.
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+
+## Install Go
+
+<Tabs syncKey="os">
+  <TabItem label="macOS">
+    ```bash
+    brew install go
+    ```
+
+    Run in **zsh** with [Homebrew](https://brew.sh/) already installed.
+    This works on Apple Silicon and Intel Macs.
+  </TabItem>
+  <TabItem label="Linux">
+    ```bash
+    (
+      set -eu
+      case "$(uname -m)" in
+        x86_64) go_arch=amd64 ;;
+        aarch64|arm64) go_arch=arm64 ;;
+        *) echo "Choose your architecture at https://go.dev/dl/"; exit 1 ;;
+      esac
+      go_version=$(curl -fsSL 'https://go.dev/VERSION?m=text' | sed -n '1p')
+      go_root="$HOME/.local/lib/$go_version"
+      mkdir -p "$go_root"
+      curl -fsSL "https://go.dev/dl/$go_version.linux-$go_arch.tar.gz" -o /tmp/go-sdk.tar.gz
+      tar -C "$go_root" -xzf /tmp/go-sdk.tar.gz
+      printf '\nexport PATH="%s/go/bin:$PATH"\n' "$go_root" >> "$HOME/.bashrc"
+    )
+    source ~/.bashrc
+    ```
+
+    Run in **Bash**, with `curl` and `tar` installed. Downloads the current
+    stable [official release](https://go.dev/dl/) for x86-64 or ARM64 on any
+    Linux distribution, without root. If you use zsh, replace both occurrences
+    of `.bashrc` with `.zshrc`. To upgrade Go later, repeat this step.
+  </TabItem>
+  <TabItem label="Windows">
+    ```powershell
+    winget install --id GoLang.Go --exact --source winget --accept-package-agreements --accept-source-agreements
+    ```
+
+    Run in **PowerShell** on Windows with [WinGet](https://learn.microsoft.com/en-us/windows/package-manager/winget/)
+    installed. Reopen your terminal after installation. For WSL, use the Linux tab.
+  </TabItem>
+</Tabs>
+
+```sh
+go version
+```
+
+Use **Go 1.26 or newer** for the tools below. From here, shared command blocks
+work in Bash, zsh, and PowerShell unless a tab says otherwise.
+
+## Install your first tool: gup
+
+```sh
+go install github.com/nao1215/gup@latest
+```
+
+[gup](https://github.com/nao1215/gup) checks and updates tools installed with
+`go install`. Install it first so every tool you add later can be kept current.
+`@latest` selects the newest release, or the latest default-branch commit when
+there are no release tags. No repository clone is needed.
+
+### Put installed tools on PATH
+
+<Tabs syncKey="os">
+  <TabItem label="macOS">
+    ```bash
+    printf '\nexport PATH="$(go env GOPATH)/bin:$PATH"\n' >> ~/.zshrc
+    source ~/.zshrc
+    ```
+
+    For the default **zsh** shell.
+  </TabItem>
+  <TabItem label="Linux">
+    ```bash
+    printf '\nexport PATH="$(go env GOPATH)/bin:$PATH"\n' >> ~/.bashrc
+    source ~/.bashrc
+    ```
+
+    For **Bash**; use `.zshrc` instead for zsh.
+  </TabItem>
+  <TabItem label="Windows">
+    ```powershell
+    $goBin = Join-Path (go env GOPATH) 'bin'
+    $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
+    if ($goBin -notin ($userPath -split ';')) {
+        [Environment]::SetEnvironmentVariable('Path', "$goBin;$userPath", 'User')
+    }
+    $env:Path = "$goBin;$env:Path"
+    ```
+
+    For **PowerShell**. Updates both this terminal and future terminals.
+  </TabItem>
+</Tabs>
+
+```sh
+gup version
+```
+
+Go installs executables into `GOBIN` if set, otherwise `GOPATH/bin` (usually
+`~/go/bin` or `%USERPROFILE%\go\bin`). The PATH commands above assume the default
+unset `GOBIN`; check with `go env GOBIN GOPATH` if a tool cannot be found.
+See [Go's installation guide](https://go.dev/doc/install) for more detail.
+
+## Run two small programs
+
+### Hello, world
+
+```sh
+mkdir go-starter
+cd go-starter
+go mod init example/go-starter
+```
+
+Create this file in your editor:
+
+```go title="main.go"
+package main
+
+import "fmt"
+
+func main() {
+	fmt.Println("Hello, Go!")
+}
+```
+
+```sh
+go run .
+```
+
+Prints `Hello, Go!`. `go run` compiles and runs the program in one step.
+`package main` makes it executable; `func main()` is its entry point.
+`fmt` comes from Go's standard library, so there is nothing extra to install.
+
+### A greeting with an argument
+
+Replace `main.go` with:
+
+```go title="main.go"
+package main
+
+import (
+	"fmt"
+	"os"
+)
+
+func main() {
+	name := "world"
+	if len(os.Args) > 1 {
+		name = os.Args[1]
+	}
+	fmt.Printf("Hello, %s!\n", name)
+}
+```
+
+```sh
+go run . Bryan
+```
+
+Prints `Hello, Bryan!`; without an argument it greets `world`. `:=` declares a
+variable and infers its type. `os.Args[0]` is the program name, so the first user
+argument is at index `1`. The length check keeps that access safe.
+
+## Basics worth keeping
+
+```sh
+go fmt ./...
+go vet ./...
+go test ./...
+```
+
+Run these from the project folder: format the code, check for likely mistakes,
+and run tests. This starter has no tests yet. `./...` includes subpackages.
+
+Build an executable you can run without Go installed:
+
+<Tabs syncKey="os">
+  <TabItem label="macOS">
+    ```bash
+    go build -o starter .
+    ./starter Bryan
+    ```
+  </TabItem>
+  <TabItem label="Linux">
+    ```bash
+    go build -o starter .
+    ./starter Bryan
+    ```
+  </TabItem>
+  <TabItem label="Windows">
+    ```powershell
+    go build -o starter.exe .
+    .\starter.exe Bryan
+    ```
+  </TabItem>
+</Tabs>
+
+The executable targets the OS and architecture you built it on.
+
+| Command or concept | Remember |
+| --- | --- |
+| `go run .` | Compile and run the current package; leaves no executable in the project. |
+| `go build .` | Compile an executable into the current directory. |
+| `go install ...@latest` | Install a CLI tool into your Go bin directory. |
+| `go get` | Add or update a project's library dependencies; CLI tools use `go install`. |
+| `go mod tidy` | Reconcile dependencies with imports; maintains `go.mod` and `go.sum`. |
+| Package / module | A package groups Go files in a directory; a module groups packages under one `go.mod`. |
+| Compiler errors | Unused imports and local variables are errors; remove them. |
+
+For the next installment, build a small CLI with flags, error handling, and a
+first test. The [official Go tutorial](https://go.dev/doc/tutorial/getting-started)
+also walks through adding a library dependency.
+
+## Install folgit
+
+```sh
+git --version
+go install github.com/bferg314/folgit/cmd/folgit@latest
+```
+
+[folgit](https://github.com/bferg314/folgit) is my terminal dashboard for Git
+repositories. It requires `git` on PATH; install [Git](https://git-scm.com/downloads)
+first if the version check fails. Its executable package lives under `cmd/folgit`,
+so that suffix matters in the install command.
+
+```sh
+folgit .
+```
+
+Scans the current directory for repositories. Run it from your code folder for
+a useful view; press `?` for keys and `q` to quit. The Local tab needs no GitHub
+login. The Remote tab also lists uncloned GitHub repos after `gh auth login`
+(requires the [GitHub CLI](https://cli.github.com/)).
+
+## Check for updates with gup
+
+```sh
+gup check
+```
+
+Checks installed Go tools, including gup and folgit, without updating them.
+
+```sh
+gup update folgit gup
+```
+
+Updates just those two tools. Use `gup update` to update all installed Go tools.
+gup manages CLI binaries; update the Go SDK through its original installer and
+manage project dependencies with Go's module commands.

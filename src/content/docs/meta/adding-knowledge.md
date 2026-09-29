@@ -23,6 +23,7 @@ section uses Starlight's `autogenerate`, so **the filesystem is the navigation.*
 | --- | --- | --- |
 | `setup/` | Machine Setup | Provisioning a machine from scratch. One page per platform. |
 | `howto/` | How-To | A single task with a beginning and an end. "Configure X", "Set up Y". |
+| `lang/` | Languages | Language guides and tutorials, including multi-part series. |
 | `cheatsheets/` | Cheatsheets | Dense command references you scan, not read. |
 | `meta/` | Meta | Docs about this site itself. |
 
