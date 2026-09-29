@@ -13,10 +13,12 @@ knowledge should touch exactly one Markdown file. If you find yourself editing
 - Create a new branch from `main` before making any changes, including docs and
   agent instructions. Use a separate branch for each independent change.
 - Commit only the files relevant to that change; preserve unrelated work.
-- Run the required checks, push the branch, and open a pull request targeting
-  `main`.
-- Merge the pull request to bring the change into `main`. Never commit directly
-  to `main` or push changes directly to it.
+- Run the required checks and prepare a reviewable commit on the branch. Ask for
+  explicit user approval before opening a pull request targeting `main`.
+- Ask for explicit user approval before merging the pull request into `main`.
+  Approval to open a PR does not also authorize merging it; the user may
+  explicitly approve both actions together.
+- Never commit directly to `main` or push changes directly to it.
 
 ## Adding a page
 
