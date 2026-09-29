@@ -21,6 +21,7 @@ its own. There is no index to update.
 | --- | --- | --- |
 | `setup/` | Machine Setup | Provisioning a machine from scratch, one page per platform |
 | `howto/` | How-To | A single task with a beginning and an end |
+| `lang/` | Languages | Language guides and tutorials, including multi-part series |
 | `cheatsheets/` | Cheatsheets | Dense command references, meant to be scanned |
 | `meta/` | Meta | Docs about this site itself |
 

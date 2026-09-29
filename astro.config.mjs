@@ -53,6 +53,10 @@ export default defineConfig({
 					items: [{ autogenerate: { directory: 'howto' } }],
 				},
 				{
+					label: 'Languages',
+					items: [{ autogenerate: { directory: 'lang' } }],
+				},
+				{
 					label: 'Cheatsheets',
 					items: [{ autogenerate: { directory: 'cheatsheets' } }],
 				},
