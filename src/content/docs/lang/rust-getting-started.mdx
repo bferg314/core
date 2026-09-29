@@ -1,0 +1,236 @@
+---
+title: Rust, Part 1 — Get Started
+description: Install Rust with rustup on macOS, Linux, or Windows, run two small programs, and install terminal games with Cargo.
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+
+## Install Rust with rustup
+
+<Tabs syncKey="os">
+  <TabItem label="macOS">
+    ```bash
+    xcode-select --install
+    ```
+
+    Run in **zsh**. Finish the Command Line Tools installer before continuing;
+    skip this step if they're already installed. Rust needs their linker.
+
+    ```bash
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
+    source "$HOME/.cargo/env"
+    ```
+  </TabItem>
+  <TabItem label="Linux">
+    ```bash
+    sudo apt update
+    sudo apt install -y curl build-essential
+    ```
+
+    Run in **Bash** on Debian/Ubuntu. On Fedora use `sudo dnf install -y curl gcc`,
+    or on Arch use `sudo pacman -S --needed curl base-devel`.
+
+    ```bash
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
+    source "$HOME/.cargo/env"
+    ```
+
+    The rustup command also works in zsh and on other Linux distributions once
+    `curl` and a C compiler/linker are installed.
+  </TabItem>
+  <TabItem label="Windows">
+    ```powershell
+    winget install --id Microsoft.VisualStudio.2022.Community --exact --source winget --accept-package-agreements --accept-source-agreements --override "--wait --passive --add Microsoft.VisualStudio.Component.VC.Tools.x86.x64 --add Microsoft.VisualStudio.Component.VC.Tools.ARM64 --add Microsoft.VisualStudio.Component.Windows11SDK.22621 --addProductLang En-us"
+    ```
+
+    Run in **PowerShell** with [WinGet](https://learn.microsoft.com/en-us/windows/package-manager/winget/).
+    Wait for Visual Studio to finish installing the C++ tools and Windows SDK;
+    skip this step if those components are already installed. These provide
+    Rust's default MSVC linker. See the [rustup Windows prerequisites](https://rust-lang.github.io/rustup/installation/windows-msvc.html).
+
+    ```powershell
+    winget install --id Rustlang.Rustup --exact --source winget --accept-package-agreements --accept-source-agreements
+    ```
+
+    Reopen your terminal after installation. For WSL, use the Linux tab.
+  </TabItem>
+</Tabs>
+
+```sh
+rustup default stable
+rustc --version
+cargo --version
+```
+
+[rustup](https://rust-lang.org/tools/install/) manages Rust toolchains.
+`rustc` is the compiler; **Cargo** builds projects, manages dependencies, and
+installs command-line applications. Shared command blocks below work in Bash,
+zsh, and PowerShell unless a tab says otherwise.
+
+rustup adds its tools to PATH. Cargo-installed executables go in `~/.cargo/bin`
+(Windows: `%USERPROFILE%\.cargo\bin`) by default. If a command isn't found,
+reopen the terminal; on macOS/Linux, try `source "$HOME/.cargo/env"`.
+
+## Install a couple of terminal games
+
+### Setrixtui: falling blocks become sand
+
+```sh
+cargo install --locked setrixtui
+```
+
+```sh
+setrixtui
+```
+
+[Setrixtui](https://github.com/Mjoyufull/Setrixtui) turns landed blocks into
+grains of sand. Connect one colour across the board to clear it. Arrow keys move
+and rotate, Space drops, `p` pauses, and `q` quits. A good first Cargo install:
+one command gets you a playable terminal puzzle.
+
+### chess-tui: chess without leaving the terminal
+
+```sh
+cargo install --locked --no-default-features chess-tui
+```
+
+```sh
+chess-tui
+```
+
+[chess-tui](https://github.com/thomas-mauran/chess-tui) runs on macOS, Linux,
+and Windows. Start with local two-player mode; arrows or `h/j/k/l` move the
+cursor, Space selects and moves a piece, `?` opens help, and `q` quits.
+Playing against a bot requires a separate chess engine such as Stockfish.
+
+`--no-default-features` disables optional sound, avoiding extra audio build
+dependencies on Linux. For both games, Cargo downloads source from
+[crates.io](https://crates.io/) and compiles an executable. The first install
+can take a few minutes. `--locked` uses the release's bundled dependency lockfile.
+
+## Run two small programs
+
+### Hello, world
+
+```sh
+cargo new rust-starter
+cd rust-starter
+cargo run
+```
+
+Cargo creates a project with `Cargo.toml` and `src/main.rs`, then compiles and
+runs it. The generated program prints `Hello, world!`:
+
+```rust title="src/main.rs"
+fn main() {
+    println!("Hello, world!");
+}
+```
+
+`main` is the entry point. `println!` is a macro—the `!` distinguishes it from
+a function—and prints text followed by a newline. No extra crate is needed.
+
+### A greeting with an argument
+
+Replace `src/main.rs` with:
+
+```rust title="src/main.rs"
+use std::env;
+
+fn main() {
+    let name = env::args().nth(1).unwrap_or_else(|| "world".to_string());
+    println!("Hello, {name}!");
+}
+```
+
+```sh
+cargo run -- Bryan
+```
+
+Prints `Hello, Bryan!`; without an argument it greets `world`. `--` separates
+Cargo's options from your program's arguments. `let` declares an immutable
+variable and infers its type. `nth(1)` gets the first user argument, and
+`unwrap_or_else` supplies a default when it's absent.
+
+## Basics worth keeping
+
+```sh
+cargo fmt
+cargo clippy
+cargo test
+```
+
+Run from the project folder: format the code, check for common mistakes, and
+run tests. This starter has no tests yet. The default rustup installation
+includes rustfmt and Clippy; if either is missing, run
+`rustup component add rustfmt clippy`.
+
+Build an optimized executable:
+
+<Tabs syncKey="os">
+  <TabItem label="macOS">
+    ```bash
+    cargo build --release
+    ./target/release/rust-starter Bryan
+    ```
+  </TabItem>
+  <TabItem label="Linux">
+    ```bash
+    cargo build --release
+    ./target/release/rust-starter Bryan
+    ```
+  </TabItem>
+  <TabItem label="Windows">
+    ```powershell
+    cargo build --release
+    .\target\release\rust-starter.exe Bryan
+    ```
+  </TabItem>
+</Tabs>
+
+That binary runs without Rust installed on a compatible machine. It targets
+the OS and architecture you built it on.
+
+| Command or file | Remember |
+| --- | --- |
+| `cargo check` | Check that the code compiles without producing the final executable. |
+| `cargo run` | Build and run; development builds favour compile speed. |
+| `cargo build --release` | Produce an optimized executable under `target/release/`. |
+| `cargo install` | Install a CLI application into the Cargo bin directory. |
+| `cargo add serde` | Add a library dependency to the current project. |
+| `Cargo.toml` | Project metadata and dependency requirements. |
+| `Cargo.lock` | Resolved dependency versions; commit it for an application. |
+
+Rust calls its libraries and executables **crates**. Ownership and borrowing
+are the next language concepts to learn; the [Rust Book](https://doc.rust-lang.org/book/)
+explains them after the [Cargo introduction](https://doc.rust-lang.org/book/ch01-03-hello-cargo.html).
+
+## Keep Rust and the games current
+
+```sh
+rustup check
+```
+
+Checks for toolchain and rustup updates. Apply toolchain updates with:
+
+```sh
+rustup update stable
+```
+
+List installed Cargo applications:
+
+```sh
+cargo install --list
+```
+
+To update the games, repeat their install commands:
+
+```sh
+cargo install --locked setrixtui
+cargo install --locked --no-default-features chess-tui
+```
+
+Cargo installs a newer release when available and skips an unchanged install.
+`rustup update` updates Rust; it does not update Cargo-installed applications.
+Likewise, `cargo update` updates a project's dependency lockfile, not its
+installed games. See [Cargo's install reference](https://doc.rust-lang.org/cargo/commands/cargo-install.html).
