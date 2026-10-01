@@ -1,0 +1,283 @@
+---
+title: Node.js, Part 1 — Get Started
+description: Install Node.js and npm with fnm on macOS, Linux, or Windows, run two small programs, turn them into an npm project, and keep Node and packages current.
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+
+## Install fnm and Node.js
+
+[fnm](https://github.com/Schniz/fnm) (Fast Node Manager) installs Node.js
+versions side by side and switches between them per project. It works the
+same on every OS, and npm comes with each Node version it installs.
+
+<Tabs syncKey="os">
+  <TabItem label="macOS">
+    ```bash
+    brew install fnm
+    echo 'eval "$(fnm env --use-on-cd --shell zsh)"' >> ~/.zshrc
+    source ~/.zshrc
+    ```
+
+    Run in **zsh** with [Homebrew](https://brew.sh/) installed.
+  </TabItem>
+  <TabItem label="Linux">
+    ```bash
+    sudo apt install -y curl unzip
+    curl -fsSL https://fnm.vercel.app/install | bash -s -- --skip-shell
+    ```
+
+    ```bash
+    cat >> ~/.bashrc <<'EOF'
+    export PATH="$HOME/.local/share/fnm:$PATH"
+    eval "$(fnm env --use-on-cd --shell bash)"
+    EOF
+    source ~/.bashrc
+    ```
+
+    Run in **Bash**. The script downloads the fnm binary to
+    `~/.local/share/fnm`. `--skip-shell` stops it from editing `.bashrc`
+    itself, so the second block can add `--use-on-cd`. For zsh, write to
+    `~/.zshrc` and use `--shell zsh`.
+  </TabItem>
+  <TabItem label="Windows">
+    ```powershell
+    winget install --id Schniz.fnm --exact --source winget --accept-package-agreements --accept-source-agreements
+    ```
+
+    Run in **PowerShell 7** with [WinGet](https://learn.microsoft.com/en-us/windows/package-manager/winget/).
+    Reopen your terminal, then hook fnm into your
+    [PowerShell profile](./powershell-getting-started.mdx#your-profile):
+
+    ```powershell
+    if (-not (Test-Path $PROFILE)) { New-Item -ItemType File -Path $PROFILE -Force }
+    Add-Content -Path $PROFILE -Value 'fnm env --use-on-cd --shell powershell | Out-String | Invoke-Expression'
+    . $PROFILE
+    ```
+
+    If Node is already installed from nodejs.org or `winget install
+    OpenJS.NodeJS`, uninstall it first from **Settings → Apps → Installed
+    apps**. Otherwise you have two Nodes, and editors and other programs
+    may pick the old one. For WSL, use the Linux tab.
+  </TabItem>
+</Tabs>
+
+Install the current LTS (long-term support) release:
+
+```sh
+fnm install --lts
+```
+
+```sh
+node --version
+npm --version
+```
+
+Expect **Node 24** and **npm 11** or newer. The first version you install
+becomes the default. From here, shared blocks work in Bash, zsh, and
+PowerShell unless a tab says otherwise.
+
+## Try a package without installing it
+
+```sh
+npx cowsay "Hello, Node!"
+```
+
+`npx` downloads a package into a cache, runs its command, and leaves nothing
+on your PATH. Answer `y` the first time it asks. It's the quickest way to try
+a CLI before deciding to keep it.
+
+## Install your first tool: npm-check-updates
+
+```sh
+npm install -g npm-check-updates
+```
+
+```sh
+ncu --version
+```
+
+[npm-check-updates](https://github.com/raineorshine/npm-check-updates) (`ncu`)
+lists dependencies with newer versions than `package.json` allows. You'll use
+it in the last section.
+
+:::caution[Global tools belong to one Node version]
+With fnm, `npm install -g` puts the tool inside the **current** Node
+version's folder. After you switch or upgrade Node, `ncu` is gone until you
+install it again for that version.
+:::
+
+## Run two small programs
+
+```sh
+mkdir node-starter
+cd node-starter
+```
+
+### Hello, world
+
+Create this file in your editor:
+
+```js title="hello.js"
+console.log("Hello, Node!");
+```
+
+```sh
+node hello.js
+```
+
+Prints `Hello, Node!`. Node runs the file directly, with no build step.
+
+### A greeting with an argument
+
+Replace `hello.js` with:
+
+```js title="hello.js"
+const name = process.argv[2] ?? "world";
+console.log(`Hello, ${name}!`);
+```
+
+```sh
+node hello.js Bryan
+```
+
+Prints `Hello, Bryan!`; without an argument it greets `world`.
+`process.argv[0]` is the path to `node` and `[1]` is the script, so your first
+argument is `[2]`. `??` supplies the default only when the left side is
+missing. Backtick strings insert values with `${...}`.
+
+## Make it an npm project
+
+```sh
+npm init -y
+npm pkg set type=module scripts.start="node hello.js"
+```
+
+`npm init -y` writes a `package.json` with defaults. `type=module` lets you
+use modern `import` syntax, and `scripts.start` gives the project a
+`npm start` command.
+
+Add a library:
+
+```sh
+npm install picocolors
+```
+
+```js title="hello.js"
+import pc from "picocolors";
+
+const name = process.argv[2] ?? "world";
+console.log(pc.cyan(`Hello, ${name}!`));
+```
+
+```sh
+npm start -- Bryan
+```
+
+Prints `Hello, Bryan!` in cyan. Everything after `--` is passed to your
+script, not to npm.
+
+`npm install` adds the library to `package.json`, downloads it into
+`node_modules`, and records exact versions in `package-lock.json`.
+
+```text title=".gitignore"
+node_modules/
+```
+
+Commit `package.json` and `package-lock.json`, but never `node_modules`. On
+a fresh clone, `npm ci` reinstalls exactly what the lockfile says.
+
+## Basics worth keeping
+
+Rerun a script every time you save it:
+
+```sh
+node --watch hello.js Bryan
+```
+
+Node has a test runner built in. Create a test file:
+
+```js title="hello.test.js"
+import { test } from "node:test";
+import assert from "node:assert/strict";
+
+test("builds a greeting", () => {
+  const name = "Bryan";
+  assert.equal(`Hello, ${name}!`, "Hello, Bryan!");
+});
+```
+
+```sh
+node --test
+```
+
+`node --test` finds files named like `*.test.js` and runs them. Node 24 also
+runs TypeScript files directly with `node greet.ts`, as long as you only use
+type annotations. Features like `enum` still need a compiler.
+
+| Command | Remember |
+| --- | --- |
+| `npm install <pkg>` | Add a dependency to this project. `-D` marks it dev-only. |
+| `npm uninstall <pkg>` | Remove it from `package.json` and `node_modules`. |
+| `npm run` | List the project's scripts. `npm run <name>` runs one. |
+| `npm ci` | Clean install from `package-lock.json`. Use it after cloning. |
+| `npx <pkg>` | Run a package's command without installing it. |
+| `npm ls` | Show what's installed in this project. |
+| `fnm list` | Show the Node versions fnm has installed. |
+
+## Pin a Node version per project
+
+```text title=".node-version"
+24
+```
+
+Put this file in a project's root. Because of `--use-on-cd`, fnm switches to
+Node 24 whenever you `cd` into that folder. If 24 isn't installed yet, run
+`fnm install` there and it reads the file. Commit it so everyone on the
+project uses the same major version.
+
+## Keep Node and your packages current
+
+Install the newest LTS and make it the default:
+
+```sh
+fnm install --lts
+fnm default lts-latest
+```
+
+Then reinstall your global tools for that version:
+
+```sh
+npm install -g npm-check-updates
+```
+
+Remove a version you no longer need:
+
+```sh
+fnm uninstall 24.19.0
+```
+
+Inside a project, see what's out of date and apply updates within the ranges
+in `package.json`:
+
+```sh
+npm outdated
+npm update
+```
+
+To move to new major versions, which may include breaking changes, let
+`ncu` rewrite `package.json`, then install:
+
+```sh
+ncu -u
+npm install
+```
+
+Run your tests after a major bump. Update fnm itself the way you installed it:
+`brew upgrade fnm`, `winget upgrade --id Schniz.fnm`, or rerun the Linux
+install script.
+
+For the next installment: a small CLI with argument parsing, reading and
+writing files with `node:fs/promises`, and publishing a package. The
+[Node.js docs](https://nodejs.org/docs/latest/api/) are the reference as the
+programs grow.
