@@ -1,0 +1,279 @@
+---
+title: PowerShell, Part 1 — Get Started
+description: Install PowerShell 7 on macOS, Linux, or Windows, browse objects in a terminal grid view, write two scripts, and set up a profile without breaking real commands.
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+
+## Install PowerShell 7
+
+<Tabs syncKey="os">
+  <TabItem label="macOS">
+    ```bash
+    brew install --cask powershell
+    ```
+
+    Run in **zsh** with [Homebrew](https://brew.sh/) installed. Works on Apple
+    Silicon and Intel Macs.
+  </TabItem>
+  <TabItem label="Linux">
+    ```bash
+    source /etc/os-release
+    curl -fsSLO "https://packages.microsoft.com/config/ubuntu/$VERSION_ID/packages-microsoft-prod.deb"
+    sudo dpkg -i packages-microsoft-prod.deb
+    rm packages-microsoft-prod.deb
+    sudo apt update
+    sudo apt install -y powershell
+    ```
+
+    Run in **Bash** on Ubuntu. This adds Microsoft's package repository, so
+    `apt` handles updates. On Debian, replace `ubuntu` with `debian` in the
+    URL. On other distributions, see
+    [Microsoft's Linux install guide](https://learn.microsoft.com/en-us/powershell/scripting/install/installing-powershell-on-linux).
+  </TabItem>
+  <TabItem label="Windows">
+    ```powershell
+    winget install --id Microsoft.PowerShell --exact --source winget --accept-package-agreements --accept-source-agreements
+    ```
+
+    Run with [WinGet](https://learn.microsoft.com/en-us/windows/package-manager/winget/).
+    Windows already ships **Windows PowerShell 5.1** (`powershell.exe`, blue
+    icon). That's the old edition, and it's frozen. This installs
+    **PowerShell 7** (`pwsh.exe`, black icon) alongside it; use 7 for
+    everything on this page.
+
+    In Windows Terminal, make it the default: **Settings → Startup → Default
+    profile → PowerShell**. Pick the entry that isn't labelled "Windows
+    PowerShell".
+  </TabItem>
+</Tabs>
+
+Open a new terminal and start PowerShell:
+
+```sh
+pwsh
+```
+
+```powershell
+$PSVersionTable.PSVersion
+```
+
+Expect **7.4 or newer**. Every block from here on runs inside `pwsh`, on any
+OS.
+
+## Install your first module: ConsoleGuiTools
+
+```powershell
+Install-PSResource -Name Microsoft.PowerShell.ConsoleGuiTools -Scope CurrentUser -TrustRepository
+```
+
+`Install-PSResource` is built into PowerShell 7.4+ and installs modules from
+the [PowerShell Gallery](https://www.powershellgallery.com/). The Gallery is
+marked untrusted by default; `-TrustRepository` skips the confirmation prompt
+for this one install. `-Scope CurrentUser` doesn't need admin or sudo.
+
+[ConsoleGuiTools](https://github.com/PowerShell/ConsoleGuiTools) is
+Microsoft's terminal UI for browsing whatever you pipe into it:
+
+```powershell
+Get-Process | Out-ConsoleGridView
+```
+
+Type to filter, arrows to move, **Space** to select rows, **Enter** to return
+the selected rows, **Esc** to cancel.
+
+This is where PowerShell differs from Bash: commands pass **objects**, not
+text. The rows you pick come back as real process objects that the next
+command can act on:
+
+```powershell
+Get-Process | Out-ConsoleGridView | Stop-Process -WhatIf
+```
+
+`-WhatIf` prints what *would* be stopped and does nothing. Most commands that
+change things support it, so use it whenever you're unsure.
+
+## Run two small scripts
+
+```powershell
+mkdir powershell-starter
+cd powershell-starter
+```
+
+### Hello, world
+
+Create this file in your editor:
+
+```powershell title="hello.ps1"
+Write-Output 'Hello, PowerShell!'
+```
+
+```powershell
+./hello.ps1
+```
+
+Prints `Hello, PowerShell!`. The `./` is required. PowerShell never runs a
+script from the current folder by bare name, so a file can't hijack a command.
+
+### A greeting with a parameter
+
+Replace `hello.ps1` with:
+
+```powershell title="hello.ps1"
+param(
+    [string]$Name = 'world'
+)
+
+Write-Output "Hello, $Name!"
+```
+
+```powershell
+./hello.ps1 -Name Bryan
+```
+
+Prints `Hello, Bryan!`; without `-Name` it greets `world`. `param()` declares
+named parameters with types and defaults, so you get tab completion on
+`-Name` for free. `./hello.ps1 Bryan` works too, because parameters also bind
+by position.
+
+Double quotes expand variables (`"Hello, $Name!"`), and single quotes don't
+(`'Hello, $Name!'` prints literally). Use single quotes unless you need
+expansion.
+
+:::note[Windows: "running scripts is disabled"]
+PowerShell 7 on Windows defaults to `RemoteSigned`: scripts you write run, and
+scripts downloaded from the internet must be signed. If you get this error,
+you're probably in Windows PowerShell 5.1. Switch to `pwsh`. For a
+downloaded script you've read and trust, run `Unblock-File ./script.ps1`.
+:::
+
+## Basics worth keeping
+
+PowerShell can tell you about itself. Find commands by verb or noun:
+
+```powershell
+Get-Command -Noun Process
+```
+
+```powershell
+Get-Help Get-ChildItem -Examples
+```
+
+Run `Update-Help` once to download the full help text. See what an object
+holds before you filter on it:
+
+```powershell
+Get-Process | Get-Member -MemberType Property
+```
+
+Then filter, sort, and pick properties by name, with no text parsing:
+
+```powershell
+Get-ChildItem $HOME -File | Where-Object Length -gt 1KB | Sort-Object Length -Descending | Select-Object -First 5 Name, Length
+```
+
+| Command or concept | Remember |
+| --- | --- |
+| `Verb-Noun` | Every command is named this way. `Get-Verb` lists the approved verbs. |
+| `Get-Command`, `Get-Help`, `Get-Member` | Find a command, learn it, inspect its output. |
+| `Where-Object`, `Sort-Object`, `Select-Object` | Filter, sort, and trim objects in a pipeline. |
+| `-WhatIf` | Preview a change without making it. |
+| `$_` | The current object inside a script block, e.g. `ForEach-Object { $_.Name }`. |
+| `ls`, `cd`, `cat` | Built-in aliases for `Get-ChildItem`, `Set-Location`, `Get-Content`. |
+
+For editing scripts, install the
+[PowerShell extension for VS Code](https://marketplace.visualstudio.com/items?itemName=ms-vscode.PowerShell):
+
+```sh
+code --install-extension ms-vscode.powershell
+```
+
+## Your profile
+
+Your profile is a script PowerShell runs at every startup. It's where your
+aliases and functions go. Create it if it doesn't exist, then open it:
+
+```powershell
+if (-not (Test-Path $PROFILE)) { New-Item -ItemType File -Path $PROFILE -Force }
+code $PROFILE
+```
+
+The `Test-Path` guard matters: `New-Item -Force` on its own would empty an
+existing profile. On Windows, PowerShell 7's profile lives in
+`Documents\PowerShell`, separate from Windows PowerShell 5.1's in
+`Documents\WindowsPowerShell`.
+
+```powershell title="Microsoft.PowerShell_profile.ps1"
+Set-Alias -Name g -Value git
+
+function gs { git status @args }
+```
+
+```powershell
+. $PROFILE
+```
+
+The leading `.` reloads the profile into the current session. A new terminal
+also loads it.
+
+An alias is only a new name for one command. It can't include arguments, so
+`Set-Alias -Name gs -Value "git status"` looks for a command literally named
+`git status` and fails. When you need arguments, write a function. `@args`
+passes along anything you type after it.
+
+:::caution[Don't alias over real commands]
+An alias wins over a program with the same name. `Set-Alias -Name py -Value python`
+silently hides the Windows Python launcher, so `py -3.14` reaches
+`python.exe` and fails with `Unknown option: -3`. When a command behaves
+strangely, check what it actually resolves to:
+
+```powershell
+Get-Command py -All
+```
+
+`CommandType` should be `Application` for a program. `Alias` or `Function`
+means your profile is getting in the way.
+:::
+
+## Keep PowerShell and your modules current
+
+<Tabs syncKey="os">
+  <TabItem label="macOS">
+    ```bash
+    brew update
+    brew upgrade --cask powershell
+    ```
+  </TabItem>
+  <TabItem label="Linux">
+    ```bash
+    sudo apt update
+    sudo apt install --only-upgrade -y powershell
+    ```
+  </TabItem>
+  <TabItem label="Windows">
+    ```powershell
+    winget upgrade --id Microsoft.PowerShell --exact --source winget
+    ```
+
+    If the installer reports that PowerShell is in use, close your other
+    `pwsh` windows and run it from Windows PowerShell 5.1 instead.
+  </TabItem>
+</Tabs>
+
+List and update modules from inside `pwsh`:
+
+```powershell
+Get-InstalledPSResource
+```
+
+```powershell
+Update-PSResource -Name Microsoft.PowerShell.ConsoleGuiTools -TrustRepository
+```
+
+PowerShell itself and Gallery modules update separately. PowerShell also tells
+you at startup when a newer release is out.
+
+For the next installment: functions with `[CmdletBinding()]`, error handling
+with `try`/`catch`, and a first module. The
+[PowerShell docs](https://learn.microsoft.com/en-us/powershell/scripting/overview)
+are a good reference as the scripts grow.
