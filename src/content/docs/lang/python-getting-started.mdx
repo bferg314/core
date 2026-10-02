@@ -1,104 +1,79 @@
 ---
 title: Python, Part 1 — Get Started
-description: Install Python on macOS, Linux, or Windows, fix Windows Store redirects, run two scripts, and manage tools and terminal games with pipx.
+description: Install Python with uv on macOS, Linux, or Windows, run two scripts, and manage project dependencies, tools, and terminal games.
 ---
 
 import { Tabs, TabItem } from '@astrojs/starlight/components';
 
-## Install Python
+## Install uv and Python
 
 <Tabs syncKey="os">
   <TabItem label="macOS">
     ```bash
-    brew install python pipx
-    python3 --version
+    brew install uv
     ```
 
-    Run in **zsh** with [Homebrew](https://brew.sh/) installed. Use Homebrew's
-    Python for your projects; leave any Apple-provided Python alone.
+    Run in **zsh** with [Homebrew](https://brew.sh/) installed.
   </TabItem>
   <TabItem label="Linux">
     ```bash
-    sudo apt update
-    sudo apt install -y python3 python3-venv python3-pip pipx
-    python3 --version
+    curl -LsSf https://astral.sh/uv/install.sh | sh
     ```
 
-    Run in **Bash** on current Debian/Ubuntu. On Fedora use
-    `sudo dnf install -y python3 python3-pip pipx`; on Arch use
-    `sudo pacman -S --needed python python-pip python-pipx`.
-    The games below need **Python 3.12 or newer**—Ubuntu 24.04+ and Debian 13+
-    meet that requirement. On an older distribution, use a newer Python
-    installation for the games without replacing the OS's Python.
+    Run in **Bash** with `curl` installed. Reopen your terminal after the
+    installer finishes so uv is on PATH.
   </TabItem>
   <TabItem label="Windows">
     ```powershell
-    winget install --id Python.Python.3.14 --exact --source winget --accept-package-agreements --accept-source-agreements
+    winget install --id astral-sh.uv --exact --source winget --accept-package-agreements --accept-source-agreements
     ```
 
     Run in **PowerShell** with [WinGet](https://learn.microsoft.com/en-us/windows/package-manager/winget/).
-    This installs the Python 3.14 interpreter and classic `py` launcher.
-    Reopen your terminal, then:
-
-    ```powershell
-    py -3.14 --version
-    py -3.14 -m pip install --user pipx
-    py -3.14 -m pipx ensurepath
-    ```
-
-    For WSL, use the Linux tab. If you already use the newer
-    [Python install manager](https://docs.python.org/3/using/windows.html),
-    you can keep it; the examples need an installed Python 3 interpreter.
+    Reopen your terminal after installation. For WSL, use the Linux tab.
   </TabItem>
 </Tabs>
 
+```sh
+uv --version
+```
+
+```sh
+uv python install 3.14
+```
+
+```sh
+uv run --python 3.14 python --version
+```
+
+[uv](https://docs.astral.sh/uv/) manages Python versions, project environments,
+and isolated CLI tools. Its managed Python leaves the OS's Python alone.
+Shared commands here work in Bash, zsh, and PowerShell unless a tab says otherwise.
+See the [installation guide](https://docs.astral.sh/uv/getting-started/installation/)
+and [Python management guide](https://docs.astral.sh/uv/guides/install-python/).
+
 ### Windows: stop opening the Microsoft Store
 
-If typing `python` or `python3` opens the Store, Windows is running an
-**App Installer shortcut**, not your interpreter.
+```powershell
+uv run --python 3.14 python --version
+```
+
+Use `uv run` to select the managed interpreter. If typing bare `python` or
+`python3` opens the Store, Windows is running an **App Installer shortcut**.
 
 1. Open Start and search for **Manage app execution aliases**.
 2. Find the **App Installer** entries for `python.exe` and `python3.exe`.
 3. Switch both **Off**, then reopen your terminal.
 
-On Windows 11, the same page is under **Settings → Apps → Advanced app settings
-→ App execution aliases**. Turn off the App Installer entries specifically;
-keep aliases for an installed Python or Python install manager enabled.
-[Microsoft documents this Store shortcut and how to disable it](https://learn.microsoft.com/en-us/windows/python/beginners#why-does-running-pythonexe-open-the-microsoft-store).
-
-```powershell
-py -3.14 --version
-Get-Command python -All
-```
-
-The `py` launcher selects an installed interpreter without relying on the
-`python` Store shortcut. Disabling a shortcut does **not** install Python or
-add it to PATH. If `py` works but `python` is missing, you can keep using `py`
-outside a virtual environment, or enable the installer's **Add Python to PATH**
-option. Inside the activated `.venv` below, `python` resolves to that environment.
-
-## Install your first tool: pipx
-
-```sh
-pipx ensurepath
-```
-
-Reopen the terminal, then:
-
-```sh
-pipx --version
-```
-
-The install steps above included [pipx](https://pipx.pypa.io/latest/how-to/install-pipx.html).
-It installs each Python CLI application in its own virtual environment and puts
-its commands on PATH, so tools can have different dependencies. It also makes
-updates easy later. Shared commands here work in Bash, zsh, and PowerShell
-unless a tab says otherwise.
+On Windows 11, the same page is under **Settings ? Apps ? Advanced app settings
+? App execution aliases**. Keep aliases for an installed Python or Python
+install manager enabled. Disabling the Store shortcut does not install Python
+or add it to PATH; the examples below use `uv run`.
+[Microsoft documents this Store shortcut](https://learn.microsoft.com/en-us/windows/python/beginners#why-does-running-pythonexe-open-the-microsoft-store).
 
 ## Play a couple of terminal games
 
 ```sh
-pipx install terminal-games
+uv tool install --python 3.14 terminal-games
 ```
 
 ```sh
@@ -117,60 +92,35 @@ Start with these two:
 | Snake | A quick arcade break: eat food and keep growing without hitting yourself or a wall. | Arrows or WASD steer; `p` pauses; `q` returns to the menu. |
 | Minesweeper | A slower logic puzzle with three difficulty levels. | Arrows or WASD move; Space reveals; `f` flags; `r` restarts; `q` returns to the menu. |
 
-The same collection includes Tetris, 2048, and word games. pipx installs the
-application's dependencies automatically; no repository clone is needed.
+The same collection includes Tetris, 2048, and word games. uv installs the
+application's dependencies in an isolated environment; no repository clone is needed.
+If `terminal-games` is not found, run `uv tool update-shell` and reopen your
+terminal. See [uv's tools guide](https://docs.astral.sh/uv/guides/tools/).
 
 ## Run two small scripts
 
 ### Create a project and virtual environment
 
-<Tabs syncKey="os">
-  <TabItem label="macOS">
-    ```bash
-    mkdir python-starter
-    cd python-starter
-    python3 -m venv .venv
-    source .venv/bin/activate
-    ```
-  </TabItem>
-  <TabItem label="Linux">
-    ```bash
-    mkdir python-starter
-    cd python-starter
-    python3 -m venv .venv
-    source .venv/bin/activate
-    ```
-  </TabItem>
-  <TabItem label="Windows">
-    ```powershell
-    mkdir python-starter
-    cd python-starter
-    py -3.14 -m venv .venv
-    .\.venv\Scripts\Activate.ps1
-    ```
+```sh
+uv init --bare --no-package --python 3.14 python-starter
+cd python-starter
+uv python pin 3.14
+uv sync
+```
 
-    If PowerShell blocks activation, allow locally created scripts for this
-    terminal session, then activate again:
-
-    ```powershell
-    Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned
-    .\.venv\Scripts\Activate.ps1
-    ```
-
-    If a managed policy prevents this, activation is optional: use
-    `.\.venv\Scripts\python.exe` instead of `python` in the commands below.
-  </TabItem>
-</Tabs>
-
-An activated environment puts its own `python` first on PATH. Check it:
+`uv init --bare --no-package` creates a minimal script project with
+`pyproject.toml`. `uv python pin` records Python 3.14 in `.python-version`. `uv sync`
+creates `.venv` and `uv.lock`; `uv run` keeps the environment in sync when
+running commands. No shell activation is needed.
 
 ```sh
-python -c "import sys; print(sys.executable)"
+uv run python -c "import sys; print(sys.executable)"
 ```
 
 The path should point inside `python-starter/.venv`. Keep your scripts outside
-`.venv`, and exclude that directory from Git. Each project gets its own
-environment; see [Python's virtual environment guide](https://docs.python.org/3/library/venv.html).
+`.venv`, and exclude that directory from Git. Commit `.python-version`, `pyproject.toml`, and
+`uv.lock` so another machine can install the same dependencies with
+`uv sync --locked`. See [uv's project guide](https://docs.astral.sh/uv/guides/projects/).
 
 ### Hello, world
 
@@ -181,7 +131,7 @@ print("Hello, Python!")
 ```
 
 ```sh
-python hello.py
+uv run python hello.py
 ```
 
 Prints `Hello, Python!`. Python runs the script through its interpreter;
@@ -205,7 +155,7 @@ if __name__ == "__main__":
 ```
 
 ```sh
-python hello.py Bryan
+uv run python hello.py Bryan
 ```
 
 Prints `Hello, Bryan!`; without an argument it greets `world`. `sys.argv[0]`
@@ -216,24 +166,22 @@ while allowing it to be imported without running the greeting.
 
 ## Basics worth keeping
 
-Install a library into this project's activated environment:
-
 ```sh
-python -m pip install rich
+uv add rich
 ```
 
+Adds the library to `pyproject.toml`, updates `uv.lock`, and installs it into
+this project's environment. Run these commands from `python-starter`.
+
 ```sh
-python -c "from rich import print; print('[bold cyan]Hello, Python![/bold cyan]')"
+uv run python -c "from rich import print; print('[bold cyan]Hello, Python![/bold cyan]')"
 ```
 
 [Rich](https://github.com/Textualize/rich) adds formatted terminal output.
-Use `python -m pip` so package installation targets the same interpreter that
-runs your script. For CLI applications, keep using pipx.
-
-Install a formatter and linter as a standalone tool:
+Use `uv add` for project libraries and `uv tool install` for CLI applications.
 
 ```sh
-pipx install ruff
+uv tool install ruff
 ```
 
 ```sh
@@ -242,28 +190,17 @@ ruff check hello.py
 ```
 
 [Ruff](https://docs.astral.sh/ruff/) formats code and finds common mistakes.
-To record this project's installed libraries:
-
-```sh
-python -m pip freeze > requirements.txt
-```
-
-Commit `requirements.txt`. In a new activated environment, reproduce those
-versions with `python -m pip install -r requirements.txt`.
+If `ruff` is not found, run `uv tool update-shell` and reopen your terminal.
 
 | Command or concept | Remember |
 | --- | --- |
-| `python` | Open the interactive interpreter; `exit()` leaves it. |
-| `python hello.py` | Run a script using the active environment. |
-| `python -m pip` | Run pip using that same interpreter. |
-| `pipx install` | Install a CLI application with isolated dependencies. |
-| `python -m pip check` | Check installed libraries for dependency conflicts. |
-| `deactivate` | Leave the virtual environment. Activate it again next time you work on the project. |
-
-If pip reports `externally-managed-environment`, you're probably using the OS
-or Homebrew Python outside a virtual environment. Activate `.venv` for project
-libraries, or use pipx for applications. Avoid `sudo pip` and
-`--break-system-packages`.
+| `uv run python` | Open the project's interactive interpreter; `exit()` leaves it. |
+| `uv run python hello.py` | Run a script in the project environment. |
+| `uv add rich` | Record and install a project dependency. |
+| `uv remove rich` | Remove a project dependency and update the lockfile. |
+| `uv tool install ruff` | Install a CLI application with isolated dependencies. |
+| `uvx ruff check hello.py` | Run a tool without installing its command on PATH. |
+| `uv sync --locked` | Install from the lockfile; fail if it needs updating. |
 
 ## Keep Python and your tools current
 
@@ -271,53 +208,52 @@ libraries, or use pipx for applications. Avoid `sudo pip` and
   <TabItem label="macOS">
     ```bash
     brew update
-    brew upgrade python pipx
+    brew upgrade uv
     ```
   </TabItem>
   <TabItem label="Linux">
     ```bash
-    sudo apt update
-    sudo apt install --only-upgrade -y python3 python3-venv python3-pip pipx
+    uv self update
     ```
 
-    Debian/Ubuntu; use your distribution's package manager on Fedora or Arch.
+    For the standalone installer used above. If you installed uv with a
+    package manager, update it through that manager instead.
   </TabItem>
   <TabItem label="Windows">
     ```powershell
-    winget upgrade --id Python.Python.3.14 --exact --source winget
-    py -3.14 -m pip install --user --upgrade pipx
+    winget upgrade --id astral-sh.uv --exact --source winget
     ```
-
-    Updates within the installed Python 3.14 release family.
   </TabItem>
 </Tabs>
 
-Check the game's environment for available package updates:
-
 ```sh
-pipx runpip terminal-games list --outdated
+uv python upgrade 3.14
 ```
 
-Update the game collection, or every pipx application:
+Updates uv-managed Python within the 3.14 release family. See the
+[Python upgrade guide](https://docs.astral.sh/uv/guides/install-python/#upgrading-python-versions).
 
 ```sh
-pipx upgrade terminal-games
+uv tool upgrade terminal-games
 ```
+
+Updates the game collection. To update every installed uv tool:
 
 ```sh
-pipx upgrade-all
+uv tool upgrade --all
 ```
 
-Inside your project environment, use `python -m pip list --outdated` to check
-libraries and `python -m pip install --upgrade rich` to update one. Refresh
-`requirements.txt` after an intentional update. Python itself, pipx applications,
-and project libraries have separate update paths.
+From the project directory, update Rich within its declared version constraints:
 
-After moving to a new Python minor version, recreate project environments with
-that interpreter and reinstall their requirements. pipx applications can be
-rebuilt with `pipx reinstall-all --python python3` on macOS/Linux, or
-`pipx reinstall-all --python (py -3.14 -c "import sys; print(sys.executable)")`
-in PowerShell (adjust the selected version for the new interpreter).
+```sh
+uv lock --upgrade-package rich
+uv sync
+```
+
+Review and commit the updated `uv.lock`. To upgrade all project dependencies,
+use `uv lock --upgrade` followed by `uv sync`. See
+[dependency management](https://docs.astral.sh/uv/concepts/projects/dependencies/).
+Python, uv tools, and project libraries have separate update commands.
 
 For the next installment: a small CLI with `argparse`, error handling, and a
 first test. The [Python tutorial](https://docs.python.org/3/tutorial/) is a good
